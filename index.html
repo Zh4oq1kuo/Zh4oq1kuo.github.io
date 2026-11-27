@@ -1,0 +1,2971 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#05090f">
+<title>畸变实验室 · Distortion Lab</title>
+<meta name="description" content="一个关于光学畸变的交互式讲义：拖动参数，观察桶形与枕形畸变如何形成、如何读数、又如何被校正。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23070d16'/%3E%3Cpath d='M12 26c8-8 32-8 40 0M12 38c8 8 32 8 40 0' stroke='%2355d6ff' stroke-width='3' fill='none'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%23ffb86b'/%3E%3C/svg%3E">
+<style>
+/* =========================================================
+   畸变实验室 — Distortion Lab
+   visual system & layout
+   ========================================================= */
+
+:root{
+  --bg:#05090f;
+  --bg-soft:#08111c;
+  --ink:#e9f1fb;
+  --muted:#94a8c0;
+  --dim:#61748c;
+  --line:rgba(160,200,240,.12);
+  --line-strong:rgba(160,200,240,.24);
+  --card:linear-gradient(180deg,rgba(18,31,48,.72),rgba(9,17,28,.72));
+  --cyan:#55d6ff;
+  --cyan-deep:#2aa9d8;
+  --amber:#ffb86b;
+  --mint:#5ce1b8;
+  --rose:#ff7a8a;
+  --barrel:#4cc9f0;
+  --pincushion:#ffb86b;
+  --radius:18px;
+  --font-sans:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB",system-ui,-apple-system,sans-serif;
+  --font-mono:"Cascadia Code","JetBrains Mono","SFMono-Regular",Consolas,"Liberation Mono",monospace;
+  --shadow:0 24px 60px -24px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--font-sans);
+  font-size:15px;
+  line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+body::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:-2;
+  background:
+    radial-gradient(900px 520px at 78% -8%, rgba(42,169,216,.16), transparent 62%),
+    radial-gradient(760px 520px at 6% 12%, rgba(255,184,107,.07), transparent 60%),
+    radial-gradient(1200px 800px at 50% 100%, rgba(20,46,74,.35), transparent 70%),
+    var(--bg);
+}
+body::after{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:-1;
+  pointer-events:none;
+  background-image:
+    linear-gradient(rgba(140,190,235,.045) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(140,190,235,.045) 1px,transparent 1px);
+  background-size:88px 88px;
+  mask-image:radial-gradient(ellipse at 50% 20%,#000 0%,transparent 72%);
+  -webkit-mask-image:radial-gradient(ellipse at 50% 20%,#000 0%,transparent 72%);
+}
+::selection{background:rgba(85,214,255,.3);color:#fff}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+canvas{display:block;max-width:100%}
+img,svg{max-width:100%}
+sub,sup{font-size:.66em}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+
+.grain{
+  position:fixed;
+  inset:0;
+  z-index:40;
+  pointer-events:none;
+  opacity:.32;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.16'/%3E%3C/svg%3E");
+  mix-blend-mode:overlay;
+}
+
+/* ------------------------------------------------ nav */
+.site-nav{
+  position:fixed;
+  top:0;left:0;right:0;
+  z-index:50;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:24px;
+  padding:18px clamp(20px,4vw,54px);
+  border-bottom:1px solid transparent;
+  transition:background .35s ease,border-color .35s ease,padding .35s ease;
+}
+.site-nav.is-scrolled{
+  padding-top:12px;padding-bottom:12px;
+  background:rgba(5,10,17,.78);
+  border-bottom-color:var(--line);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand-mark{color:var(--cyan);display:grid;place-items:center;filter:drop-shadow(0 0 12px rgba(85,214,255,.4))}
+.brand-mark.small{width:24px}
+.brand-text{display:flex;flex-direction:column;line-height:1.1;font-weight:700;letter-spacing:.04em;font-size:15px}
+.brand-text em{font-family:var(--font-mono);font-style:normal;font-size:9px;letter-spacing:.24em;color:var(--dim);margin-top:3px;font-weight:500}
+.nav-links{display:flex;align-items:center;gap:30px;font-size:13.5px;color:var(--muted)}
+.nav-links a{position:relative;padding:6px 0;transition:color .2s}
+.nav-links a::after{
+  content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:var(--cyan);
+  transform:scaleX(0);transform-origin:left;transition:transform .3s ease;opacity:.8;
+}
+.nav-links a:hover{color:var(--ink)}
+.nav-links a:hover::after{transform:scaleX(1)}
+.nav-cta{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:10px 16px;border:1px solid var(--line-strong);border-radius:999px;
+  font-size:13px;color:var(--ink);
+  transition:.25s ease;
+}
+.nav-cta span{color:var(--cyan);transition:transform .25s}
+.nav-cta:hover{background:rgba(85,214,255,.08);border-color:rgba(85,214,255,.5)}
+.nav-cta:hover span{transform:translate(2px,-2px)}
+
+/* ------------------------------------------------ hero */
+.hero{
+  position:relative;
+  min-height:100svh;
+  display:flex;
+  align-items:center;
+  padding:132px clamp(20px,4vw,54px) 92px;
+  isolation:isolate;
+  overflow:hidden;
+}
+.hero-aura{
+  position:absolute;inset:0;z-index:-1;
+  background:
+    radial-gradient(720px 560px at 72% 44%,rgba(42,169,216,.22),transparent 66%),
+    radial-gradient(480px 420px at 80% 30%,rgba(255,184,107,.12),transparent 68%);
+  filter:blur(6px);
+}
+.hero-aura::after{
+  content:"";position:absolute;left:58%;top:8%;width:min(46vw,620px);aspect-ratio:1;border-radius:50%;
+  border:1px solid rgba(120,200,240,.12);
+  box-shadow:0 0 0 60px rgba(120,200,240,.025),0 0 0 140px rgba(120,200,240,.02);
+  animation:auraSpin 40s linear infinite;
+}
+@keyframes auraSpin{to{transform:rotate(360deg)}}
+.hero-inner{
+  width:min(1480px,100%);
+  margin:0 auto;
+  display:grid;
+  grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr);
+  gap:clamp(32px,5vw,80px);
+  align-items:center;
+}
+.eyebrow{
+  display:flex;align-items:center;gap:10px;
+  margin:0 0 22px;
+  font-family:var(--font-mono);
+  font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--muted);
+}
+.pulse-dot{
+  width:6px;height:6px;border-radius:50%;background:var(--cyan);
+  box-shadow:0 0 0 0 rgba(85,214,255,.6);
+  animation:pulse 2.4s infinite;
+}
+@keyframes pulse{
+  0%{box-shadow:0 0 0 0 rgba(85,214,255,.55)}
+  70%{box-shadow:0 0 0 9px rgba(85,214,255,0)}
+  100%{box-shadow:0 0 0 0 rgba(85,214,255,0)}
+}
+h1{margin:0;line-height:.9;font-weight:700}
+.h1-cn{
+  display:block;
+  font-size:clamp(88px,12.6vw,190px);
+  letter-spacing:.02em;
+  background:linear-gradient(180deg,#fff 18%,#9fc5df 62%,#4b7897 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 10px 38px rgba(28,115,155,.28));
+}
+.h1-en{
+  display:block;
+  margin-top:10px;
+  font-family:var(--font-mono);
+  font-size:clamp(13px,1.55vw,20px);
+  letter-spacing:.52em;
+  color:transparent;
+  -webkit-text-stroke:1px rgba(170,215,245,.42);
+  padding-left:6px;
+}
+.lede{
+  margin:30px 0 0;
+  font-size:clamp(16px,1.35vw,20px);
+  line-height:1.75;
+  color:#c3d3e5;
+  max-width:34em;
+}
+.hero-actions{display:flex;flex-wrap:wrap;gap:14px;margin-top:34px}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:10px;
+  padding:13px 22px;border-radius:12px;
+  font-size:14.5px;font-weight:600;
+  border:1px solid transparent;
+  transition:.25s ease;
+  white-space:nowrap;
+}
+.btn-primary{
+  color:#03121c;
+  background:linear-gradient(135deg,#8ce9ff,#55d6ff 48%,#2aa9d8);
+  box-shadow:0 10px 30px -10px rgba(85,214,255,.6),inset 0 1px 0 rgba(255,255,255,.5);
+}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 16px 36px -12px rgba(85,214,255,.7)}
+.btn-ghost{border-color:var(--line-strong);color:var(--ink);background:rgba(255,255,255,.02)}
+.btn-ghost:hover{border-color:rgba(85,214,255,.45);background:rgba(85,214,255,.06)}
+.btn-small{padding:9px 14px;font-size:12.5px;border-radius:9px}
+.hero-stats{
+  display:flex;flex-wrap:wrap;gap:26px 34px;
+  margin:40px 0 0;padding:22px 0 0;list-style:none;
+  border-top:1px solid var(--line);
+}
+.hero-stats li{display:flex;flex-direction:column;gap:2px}
+.hero-stats strong{font-family:var(--font-mono);font-size:16px;color:var(--cyan);letter-spacing:.02em}
+.hero-stats span{font-size:11.5px;color:var(--dim);letter-spacing:.03em}
+.hero-visual{position:relative;display:flex;justify-content:flex-end}
+.hero-note{
+  position:absolute;right:4px;bottom:-30px;
+  font-size:9.5px;letter-spacing:.24em;color:var(--dim);
+}
+.hero-card{
+  position:relative;
+  width:min(100%,560px);
+  padding:14px;
+  border-radius:24px;
+  background:linear-gradient(160deg,rgba(20,37,56,.9),rgba(7,14,23,.94));
+  border:1px solid rgba(140,200,245,.18);
+  box-shadow:0 40px 100px -32px rgba(0,0,0,.9),0 0 0 1px rgba(255,255,255,.02) inset;
+  transform:rotate(.6deg);
+}
+.hero-card::before{
+  content:"";position:absolute;inset:0;border-radius:24px;pointer-events:none;
+  background:linear-gradient(120deg,rgba(255,255,255,.08),transparent 32%);
+}
+.hero-card-head,.hero-card-foot{display:flex;align-items:center;justify-content:space-between;padding:2px 4px}
+.hero-card-head{padding-bottom:10px}
+.tag{
+  display:inline-flex;align-items:center;gap:7px;
+  font-family:var(--font-mono);font-size:9px;letter-spacing:.2em;color:var(--muted);
+}
+.tag i{width:5px;height:5px;border-radius:50%;background:var(--mint);box-shadow:0 0 8px var(--mint)}
+.hero-card-head .mono{font-size:11px;color:var(--muted)}
+.hero-canvas-wrap{
+  position:relative;aspect-ratio:640/460;border-radius:14px;overflow:hidden;
+  background:#04101b;border:1px solid rgba(120,190,235,.14);
+  box-shadow:inset 0 0 60px rgba(0,0,0,.6);
+}
+#heroCanvas{position:absolute;inset:0;width:100%;height:100%}
+.hero-badge{
+  position:absolute;left:14px;top:14px;
+  display:flex;flex-direction:column;gap:1px;
+  padding:9px 13px;border-radius:10px;
+  background:rgba(4,12,20,.72);border:1px solid rgba(255,255,255,.12);
+  backdrop-filter:blur(8px);
+  font-size:13px;font-weight:600;letter-spacing:.08em;
+}
+.hero-badge em{font-family:var(--font-mono);font-style:normal;font-size:8px;letter-spacing:.22em;color:var(--muted)}
+.hero-ticks{
+  position:absolute;right:12px;bottom:10px;display:flex;gap:16px;
+  font-family:var(--font-mono);font-size:8px;color:rgba(200,225,245,.4);
+}
+.hero-card-foot{flex-direction:column;align-items:stretch;gap:6px;padding-top:12px}
+.hero-slider-row{display:flex;align-items:center;gap:10px}
+.hero-slider-row .mono{font-size:9px;color:var(--dim);letter-spacing:.05em}
+.hero-card-foot .hint{margin:0;text-align:center}
+.hint{font-size:11px;line-height:1.6;color:var(--dim);margin:8px 0 0;letter-spacing:.01em}
+.hero-scroll{
+  position:absolute;left:50%;bottom:26px;transform:translateX(-50%);
+  display:flex;align-items:center;gap:10px;
+  font-family:var(--font-mono);font-size:9px;letter-spacing:.24em;color:var(--dim);
+}
+.hero-scroll i{display:block;width:1px;height:34px;background:linear-gradient(var(--cyan),transparent);opacity:.6;animation:drop 2.2s ease-in-out infinite}
+@keyframes drop{0%,100%{transform:scaleY(.5);transform-origin:top;opacity:.2}50%{transform:scaleY(1);opacity:.7}}
+
+/* ------------------------------------------------ sections */
+.section{
+  position:relative;
+  width:min(1480px,100%);
+  margin:0 auto;
+  padding:clamp(64px,8vw,110px) clamp(20px,4vw,54px);
+  scroll-margin-top:80px;
+}
+.section-head{
+  display:flex;align-items:flex-end;justify-content:space-between;gap:40px;
+  margin-bottom:38px;
+}
+.section-title{display:flex;align-items:baseline;gap:18px}
+.sec-index{
+  font-family:var(--font-mono);font-size:11px;color:var(--cyan);
+  letter-spacing:.12em;padding-bottom:6px;
+}
+.section-title h2{
+  margin:0;font-size:clamp(34px,4vw,54px);line-height:1;font-weight:700;letter-spacing:.01em;
+}
+.section-title h2 em{
+  font-family:var(--font-mono);font-style:normal;font-size:11px;letter-spacing:.3em;
+  color:var(--dim);margin-left:16px;vertical-align:middle;
+}
+.section-sub{max-width:42em;margin:0;color:var(--muted);font-size:14px;line-height:1.8}
+.section-sub::before{content:"";display:inline-block;width:22px;height:1px;background:var(--cyan);vertical-align:middle;margin-right:12px;opacity:.7}
+
+/* ------------------------------------------------ cards */
+.card{
+  position:relative;
+  border-radius:var(--radius);
+  border:1px solid var(--line);
+  background:var(--card);
+  box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.045);
+  backdrop-filter:blur(8px);
+}
+.card-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+  padding:18px 20px 14px;
+}
+.card-head h3{margin:0;font-size:15.5px;font-weight:650;letter-spacing:.02em}
+.card-head p{margin:3px 0 0;font-size:11.5px;color:var(--dim);letter-spacing:.02em}
+.card-tools{display:flex;align-items:center;gap:10px}
+.badge{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:5px 10px;border-radius:999px;
+  font-size:11px;font-weight:600;letter-spacing:.06em;
+  border:1px solid rgba(85,214,255,.32);
+  color:var(--cyan);background:rgba(85,214,255,.08);
+  transition:.3s;
+}
+.badge.is-barrel{color:var(--barrel);border-color:rgba(76,201,240,.35);background:rgba(76,201,240,.09)}
+.badge.is-pincushion{color:var(--pincushion);border-color:rgba(255,184,107,.35);background:rgba(255,184,107,.09)}
+.badge.is-mustache{color:#d9a8ff;border-color:rgba(200,150,255,.35);background:rgba(200,150,255,.09)}
+.badge.is-none{color:var(--mint);border-color:rgba(92,225,184,.35);background:rgba(92,225,184,.09)}
+.icon-btn{
+  width:34px;height:34px;display:grid;place-items:center;border-radius:9px;
+  border:1px solid var(--line);color:var(--muted);background:rgba(255,255,255,.02);
+  transition:.2s;
+}
+.icon-btn:hover{color:var(--cyan);border-color:rgba(85,214,255,.4);background:rgba(85,214,255,.07)}
+
+/* ------------------------------------------------ lab grid */
+.lab-grid{
+  display:grid;
+  grid-template-columns:296px minmax(0,1fr) 312px;
+  gap:20px;
+  align-items:start;
+}
+.stage{display:flex;flex-direction:column;gap:20px;min-width:0}
+.readouts{display:flex;flex-direction:column;gap:20px;min-width:0}
+
+/* ------------------------------------------------ controls */
+.controls{padding:20px}
+.panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+.panel-head h3{margin:0;font-size:15.5px;font-weight:650}
+.mini-btn{
+  padding:6px 11px;border-radius:8px;border:1px solid var(--line);
+  font-size:11px;color:var(--muted);transition:.2s;letter-spacing:.02em;
+}
+.mini-btn:hover{color:var(--ink);border-color:var(--line-strong);background:rgba(255,255,255,.04)}
+.control-group{padding:18px 0;border-top:1px solid var(--line)}
+.control-group:first-of-type{border-top:0;padding-top:0}
+.group-label{
+  display:block;font-family:var(--font-mono);font-size:9.5px;
+  letter-spacing:.2em;color:var(--dim);text-transform:uppercase;margin-bottom:12px;
+}
+.preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.preset{
+  display:flex;flex-direction:column;align-items:flex-start;gap:1px;
+  padding:9px 11px;border-radius:10px;border:1px solid var(--line);
+  background:rgba(255,255,255,.02);color:var(--muted);
+  font-size:12.5px;transition:.2s;text-align:left;
+}
+.preset small{font-family:var(--font-mono);font-size:9px;color:var(--dim);letter-spacing:.04em}
+.preset:hover{border-color:var(--line-strong);color:var(--ink);background:rgba(255,255,255,.04)}
+.preset.is-active{
+  border-color:rgba(85,214,255,.45);color:#dff7ff;
+  background:linear-gradient(160deg,rgba(85,214,255,.16),rgba(85,214,255,.04));
+  box-shadow:inset 0 0 20px rgba(85,214,255,.06);
+}
+.preset.is-active small{color:rgba(150,225,250,.75)}
+.note{margin:12px 0 0;font-size:11.5px;line-height:1.7;color:var(--dim)}
+.slider-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px}
+.slider-head label{font-size:12.5px;color:var(--muted);letter-spacing:.02em}
+.sym{font-family:var(--font-mono);font-style:italic;color:var(--dim);font-size:11px}
+.slider-head output{
+  font-family:var(--font-mono);font-size:13px;color:var(--ink);
+  background:rgba(255,255,255,.045);border:1px solid var(--line);
+  padding:2px 8px;border-radius:6px;min-width:64px;text-align:right;
+}
+
+/* range */
+.range{width:100%;height:26px;margin:2px 0 0;background:transparent;-webkit-appearance:none;appearance:none;--p:50%;--thumb:#dff7ff}
+.range:focus{outline:none}
+.range::-webkit-slider-runnable-track{
+  height:4px;border-radius:99px;
+  background:linear-gradient(90deg,var(--range-accent,var(--cyan)) 0,var(--range-accent,var(--cyan)) var(--p),rgba(255,255,255,.12) var(--p),rgba(255,255,255,.12) 100%);
+}
+.range::-webkit-slider-thumb{
+  -webkit-appearance:none;width:16px;height:16px;margin-top:-6px;border-radius:50%;
+  background:var(--thumb);border:2px solid #07131f;
+  box-shadow:0 0 0 3px rgba(85,214,255,.16),0 0 16px rgba(85,214,255,.55);
+  transition:transform .15s ease;
+}
+.range:active::-webkit-slider-thumb{transform:scale(1.18)}
+.range::-moz-range-track{height:4px;border-radius:99px;background:rgba(255,255,255,.12)}
+.range::-moz-range-progress{height:4px;border-radius:99px;background:var(--range-accent,var(--cyan))}
+.range::-moz-range-thumb{width:14px;height:14px;border:2px solid #07131f;border-radius:50%;background:var(--thumb);box-shadow:0 0 0 3px rgba(85,214,255,.16),0 0 16px rgba(85,214,255,.55)}
+.range:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 4px rgba(85,214,255,.4),0 0 22px rgba(85,214,255,.7)}
+
+.seg{
+  display:flex;gap:4px;padding:4px;border-radius:11px;
+  background:rgba(3,9,16,.55);border:1px solid var(--line);
+}
+.seg button{
+  flex:1;padding:7px 10px;border-radius:8px;font-size:11.5px;color:var(--muted);
+  transition:.2s;white-space:nowrap;
+}
+.seg button:hover{color:var(--ink)}
+.seg button.is-active{
+  color:#04131d;background:linear-gradient(135deg,#9ceaff,#55d6ff);
+  font-weight:650;box-shadow:0 4px 14px -6px rgba(85,214,255,.7);
+}
+.seg-scene{margin-bottom:6px}
+
+.switch-row{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:8px 0;font-size:12.5px;color:var(--muted);cursor:pointer;user-select:none;
+}
+.switch-row input{position:absolute;opacity:0;pointer-events:none}
+.switch{
+  position:relative;width:34px;height:19px;border-radius:99px;
+  background:rgba(255,255,255,.1);border:1px solid var(--line);
+  transition:.25s;flex:0 0 auto;
+}
+.switch::after{
+  content:"";position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;
+  background:#93a6bd;transition:.25s;
+}
+.switch-row input:checked + .switch{background:rgba(85,214,255,.25);border-color:rgba(85,214,255,.5)}
+.switch-row input:checked + .switch::after{transform:translateX(15px);background:var(--cyan);box-shadow:0 0 10px rgba(85,214,255,.8)}
+.switch-row input:focus-visible + .switch{box-shadow:0 0 0 3px rgba(85,214,255,.3)}
+
+.formula-box{
+  margin-top:18px;padding:14px 14px 12px;border-radius:12px;
+  border:1px dashed rgba(160,200,240,.22);
+  background:rgba(4,12,21,.45);
+}
+.formula-box .group-label{margin-bottom:8px}
+.formula{
+  margin:4px 0;font-family:var(--font-mono);font-size:11.5px;color:#cfe4f3;letter-spacing:.01em;
+}
+.formula.dim{color:var(--dim)}
+.formula-box .hint{margin-top:10px;font-size:10.5px}
+
+/* ------------------------------------------------ image card */
+.image-card{padding:14px}
+.image-card .card-head{padding:6px 6px 14px}
+.canvas-wrap{
+  position:relative;aspect-ratio:720/468;border-radius:12px;overflow:hidden;
+  background:#04101b;border:1px solid rgba(120,190,235,.14);
+  box-shadow:inset 0 0 50px rgba(0,0,0,.55);
+}
+#imageCanvas{position:absolute;inset:0;width:100%;height:100%}
+.ring-overlay{
+  position:absolute;inset:0;width:100%;height:100%;
+  pointer-events:none;z-index:2;
+  transition:opacity .25s ease;
+}
+.hud{
+  position:absolute;display:flex;align-items:center;gap:8px;
+  padding:6px 10px;border-radius:8px;
+  background:rgba(3,10,17,.68);border:1px solid rgba(255,255,255,.1);
+  backdrop-filter:blur(6px);
+  font-family:var(--font-mono);font-size:9.5px;color:var(--muted);letter-spacing:.06em;
+  pointer-events:none;z-index:4;
+}
+.hud b{font-size:11px;color:var(--ink);font-weight:600}
+.hud-tl{left:12px;top:12px}
+.hud-br{right:12px;bottom:12px}
+.hud-br b{color:var(--cyan)}
+.compare-handle[hidden],.compare-labels[hidden]{display:none !important}
+.compare-handle{
+  position:absolute;top:0;bottom:0;left:50%;width:0;
+  border-left:1px solid rgba(150,230,255,.9);
+  box-shadow:0 0 14px rgba(85,214,255,.6);
+  z-index:3;cursor:ew-resize;
+}
+.compare-handle:focus-visible{outline:none}
+.compare-handle:focus-visible span{box-shadow:0 0 0 4px rgba(85,214,255,.35),0 0 30px rgba(85,214,255,.5)}
+.compare-handle span{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:34px;height:34px;border-radius:50%;
+  display:grid;place-items:center;
+  background:rgba(6,16,26,.9);border:1px solid rgba(150,230,255,.7);
+  color:#dff7ff;font-size:13px;
+  box-shadow:0 0 24px rgba(85,214,255,.35);
+}
+.compare-handle i{
+  position:absolute;top:0;bottom:0;left:-6px;width:12px;
+}
+.compare-labels{
+  position:absolute;top:12px;left:50%;right:auto;bottom:auto;transform:translateX(-50%);
+  display:flex;align-items:center;gap:8px;padding:4px 11px;border-radius:7px;
+  background:rgba(3,10,17,.74);border:1px solid rgba(255,255,255,.12);
+  backdrop-filter:blur(6px);
+  font-family:var(--font-mono);font-size:8.5px;letter-spacing:.14em;
+  color:rgba(220,240,255,.82);pointer-events:none;z-index:4;white-space:nowrap;
+}
+.compare-labels span + span::before{content:"/ ";color:rgba(160,190,215,.5)}
+.view-row{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:12px}
+.seg-view{max-width:360px;flex:1}
+.view-hint{font-size:9.5px;color:var(--dim);letter-spacing:.06em;white-space:nowrap}
+figcaption{padding:12px 6px 4px;font-size:11.5px;line-height:1.75;color:var(--dim)}
+.image-card,.diagram-card,.charts-card,.read-card,.notes-card{margin:0}
+
+/* ------------------------------------------------ diagram */
+.diagram-card{padding:8px 12px 12px}
+.diagram-card canvas{width:100%;height:auto;border-radius:8px;background:rgba(3,10,18,.35)}
+.diagram-legend{
+  display:flex;flex-wrap:wrap;align-items:center;gap:16px;
+  padding:10px 8px 2px;font-size:10px;color:var(--dim);
+}
+.diagram-legend .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.dot.ideal{background:transparent;border:1px solid var(--muted)}
+.dot.actual{background:var(--cyan)}
+.diagram-legend .line{display:inline-block;width:16px;height:1px;background:var(--amber);margin-right:6px;vertical-align:3px}
+.diagram-legend .mono{margin-left:auto;color:var(--muted);font-size:10px}
+
+/* ------------------------------------------------ readouts */
+.read-card{padding:18px 18px 16px}
+.read-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.read-head h3{margin:0;font-size:15.5px;font-weight:650}
+.live{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:8.5px;letter-spacing:.18em;color:var(--mint)}
+.live i{width:5px;height:5px;border-radius:50%;background:var(--mint);box-shadow:0 0 8px var(--mint);animation:pulse 2s infinite}
+.read-field{margin:0 0 12px;font-size:11.5px;color:var(--dim);display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:10px}
+.read-field b{font-family:var(--font-mono);color:var(--ink);font-size:12px}
+.read-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}
+.read-grid > div{display:flex;flex-direction:column;gap:2px}
+.read-grid span{font-size:10px;color:var(--dim);letter-spacing:.02em}
+.read-grid b{font-family:var(--font-mono);font-size:14px;font-weight:500;font-variant-numeric:tabular-nums}
+.read-grid .wide{grid-column:1/-1;padding-top:8px;border-top:1px dashed var(--line)}
+.read-grid .big{font-size:26px;color:var(--cyan);letter-spacing:-.02em}
+.meter{
+  position:relative;height:30px;margin:16px 0 6px;
+  border-radius:6px;background:rgba(255,255,255,.04);
+  border:1px solid var(--line);overflow:hidden;
+}
+.meter-zero{position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(255,255,255,.25)}
+.meter-fill{
+  position:absolute;top:5px;bottom:5px;left:50%;width:0;border-radius:3px;
+  background:linear-gradient(90deg,rgba(76,201,240,.55),rgba(76,201,240,.95));
+  transition:background .3s;
+}
+.meter-thumb{
+  position:absolute;top:50%;left:50%;width:10px;height:10px;border-radius:50%;
+  transform:translate(-50%,-50%);background:#eaf9ff;box-shadow:0 0 12px rgba(85,214,255,.8);
+}
+.meter-cap{position:absolute;bottom:-15px;font-size:8px;color:var(--dim);letter-spacing:.1em}
+.meter-cap.left{left:0}
+.meter-cap.right{right:0}
+.auto-read{
+  margin:26px 0 0;padding:12px 13px;border-radius:10px;
+  border:1px solid rgba(85,214,255,.16);
+  background:linear-gradient(160deg,rgba(85,214,255,.07),rgba(85,214,255,.015));
+  font-size:11.5px;line-height:1.8;color:#b9cee0;
+}
+.notes-card{padding:18px}
+.notes-card h3{margin:0 0 12px;font-size:15.5px;font-weight:650}
+.points{margin:0;padding:0;list-style:none;counter-reset:p}
+.points li{
+  position:relative;counter-increment:p;
+  padding:0 0 12px 26px;font-size:11.5px;line-height:1.75;color:var(--muted);
+}
+.points li:last-child{padding-bottom:0}
+.points li::before{
+  content:counter(p,decimal-leading-zero);
+  position:absolute;left:0;top:1px;
+  font-family:var(--font-mono);font-size:9px;color:var(--cyan);opacity:.8;
+}
+.points b{color:#d9e7f4;font-weight:600}
+
+/* ------------------------------------------------ charts */
+.charts-card{margin-top:20px;padding:6px 18px 10px}
+.charts-card .card-head{padding:14px 2px 8px}
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.chart{min-width:0}
+.chart-title{display:flex;align-items:baseline;justify-content:space-between;padding:6px 8px 0}
+.chart-title h4{margin:0;font-size:12.5px;font-weight:600;color:#cfe1f1}
+.chart-title .unit{font-family:var(--font-mono);font-size:9px;color:var(--dim);letter-spacing:.14em}
+.chart svg{width:100%;height:auto;display:block;overflow:visible;touch-action:none;cursor:crosshair}
+.chart-foot{margin:8px 2px 4px;font-size:11px;color:var(--dim)}
+.chart text{font-family:var(--font-mono);font-size:10px;fill:var(--dim);letter-spacing:.02em}
+.chart .axis-line{stroke:rgba(160,200,240,.18);stroke-width:1}
+.chart .grid-line{stroke:rgba(160,200,240,.075);stroke-width:1}
+.chart .zero-line{stroke:rgba(160,200,240,.32);stroke-width:1;stroke-dasharray:3 3}
+.chart .axis-label{fill:var(--dim);font-size:10px}
+.chart .curve{fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 6px rgba(85,214,255,.25))}
+.chart .area-barrel{fill:url(#gradBarrel);opacity:.5}
+.chart .area-pin{fill:url(#gradPin);opacity:.5}
+.chart .marker-line{stroke:rgba(255,255,255,.3);stroke-width:1;stroke-dasharray:2 3}
+.chart .marker-dot{stroke:#06111d;stroke-width:2}
+.chart .marker-label{fill:#eaf7ff;font-size:10.5px;paint-order:stroke;stroke:rgba(4,12,20,.85);stroke-width:3}
+.chart .drag-hint{fill:var(--dim);font-size:9px;letter-spacing:.08em}
+
+/* ------------------------------------------------ cause */
+.cause-grid{display:grid;grid-template-columns:1.18fr .82fr;gap:20px;align-items:start}
+.stop-demo{padding:6px 14px 16px}
+.stop-demo .card-head{padding:14px 4px 6px}
+.stop-demo canvas{width:100%;height:auto;border-radius:10px;background:rgba(3,10,18,.4)}
+.stop-controls{display:flex;align-items:center;gap:14px;padding:10px 10px 0}
+.stop-controls .mono{font-size:9px;color:var(--dim);letter-spacing:.16em}
+.stop-caption{margin:10px 10px 0;font-size:11.5px;color:var(--muted);min-height:3.4em;line-height:1.75}
+.cause-cards{display:grid;grid-auto-rows:auto;align-content:start;gap:14px}
+.cause-card{
+  padding:16px 18px;border-radius:14px;border:1px solid var(--line);
+  background:linear-gradient(160deg,rgba(18,32,50,.55),rgba(8,16,27,.55));
+  transition:.25s;
+}
+.cause-card:hover{border-color:rgba(140,205,245,.28);transform:translateY(-2px)}
+.cause-kicker{font-family:var(--font-mono);font-size:8.5px;letter-spacing:.2em;color:var(--cyan);opacity:.8}
+.cause-card h3{margin:6px 0 6px;font-size:14.5px;font-weight:650}
+.cause-card p{margin:0;font-size:11.5px;line-height:1.75;color:var(--muted)}
+.cause-card p.mini{margin-top:8px;font-size:10.5px;color:var(--dim);font-style:italic}
+.mini-chart{margin-top:4px;max-width:240px}
+.mini-chart svg{width:100%;height:auto}
+.formula-strip{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin-top:22px;
+  border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--line);
+}
+.formula-strip > div{background:#08111c;padding:16px 18px;display:flex;flex-direction:column;gap:5px}
+.formula-strip span{font-size:8.5px;letter-spacing:.18em;color:var(--dim);text-transform:uppercase}
+.formula-strip b{font-family:var(--font-mono);font-size:14px;font-weight:500;color:#dceefb}
+
+/* ------------------------------------------------ correct */
+.correct-grid{display:grid;grid-template-columns:1.12fr .88fr;gap:24px;align-items:start}
+.correct-visual{padding:14px}
+.correct-wrap{aspect-ratio:720/468}
+#correctCanvas{position:absolute;inset:0;width:100%;height:100%}
+.correct-controls{display:flex;align-items:center;gap:14px;padding:12px 4px 2px}
+.correct-controls .range{flex:1}
+.switch-row.compact{padding:0;font-size:10.5px;gap:6px;flex:0 0 auto}
+.switch-row.compact .switch{width:28px;height:16px}
+.switch-row.compact .switch::after{width:10px;height:10px}
+.switch-row.compact input:checked + .switch::after{transform:translateX(12px)}
+.correct-copy{display:flex;flex-direction:column;gap:14px}
+.correct-step{display:flex;gap:16px;padding:16px 18px;border-radius:14px;border:1px solid var(--line);background:rgba(10,20,32,.4)}
+.step-num{font-family:var(--font-mono);font-size:10px;color:var(--cyan);padding-top:3px}
+.correct-step h3{margin:0 0 4px;font-size:14px;font-weight:650}
+.correct-step p{margin:0;font-size:11.5px;line-height:1.75;color:var(--muted)}
+.callout{padding:16px 18px;border-radius:14px;border:1px solid rgba(255,184,107,.25);background:rgba(255,184,107,.06)}
+.callout span{font-size:8.5px;letter-spacing:.2em;color:var(--amber);text-transform:uppercase}
+.callout p{margin:4px 0 0;font-size:12px;color:#e8d3b8;line-height:1.75}
+
+/* ------------------------------------------------ quiz */
+.quiz-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.quiz-score{font-size:12px;color:var(--muted)}
+.quiz-score b{font-family:var(--font-mono);font-size:18px;color:var(--cyan);margin:0 2px}
+.quiz-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.quiz-card{
+  padding:12px;border-radius:16px;border:1px solid var(--line);
+  background:var(--card);transition:.3s;
+}
+.quiz-card canvas{width:100%;height:auto;border-radius:9px;background:#06121e;border:1px solid rgba(120,190,235,.12)}
+.quiz-card .q-canvas-wrap{position:relative;aspect-ratio:4/3;overflow:hidden;border-radius:9px}
+.quiz-card .q-canvas-wrap canvas{position:absolute;inset:0;width:100%;height:100%}
+.quiz-card h3{margin:10px 0 2px;font-size:12.5px;font-weight:600}
+.quiz-card p{margin:0;font-size:10px;color:var(--dim);min-height:2.6em}
+.q-options{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.q-options button{
+  padding:6px 4px;border-radius:7px;border:1px solid var(--line);
+  font-size:10px;color:var(--muted);transition:.2s;background:rgba(255,255,255,.02);
+}
+.q-options button:hover{border-color:var(--line-strong);color:var(--ink)}
+.quiz-card.is-correct{border-color:rgba(92,225,184,.45);box-shadow:0 0 40px -18px rgba(92,225,184,.6)}
+.quiz-card.is-wrong{border-color:rgba(255,122,138,.4)}
+.quiz-card.is-correct .q-options button.correct{border-color:rgba(92,225,184,.6);color:var(--mint);background:rgba(92,225,184,.1)}
+.quiz-card.is-wrong .q-options button.picked{border-color:rgba(255,122,138,.6);color:var(--rose);background:rgba(255,122,138,.08)}
+.quiz-card .q-result{margin-top:8px;font-size:10px;line-height:1.6;color:var(--muted);min-height:3.2em}
+.quiz-foot{margin:16px 0 0;font-size:11px;color:var(--dim)}
+
+/* ------------------------------------------------ notes */
+.notes-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.note-card{padding:20px;border-radius:16px;border:1px solid var(--line);background:var(--card)}
+.note-card.big{grid-column:span 1}
+.note-card h3{margin:6px 0 8px;font-size:15px;font-weight:650}
+.note-body{margin:6px 0 0;font-size:11.5px;line-height:1.8;color:var(--muted)}
+.note-body b{color:#d8e8f5;font-weight:600}
+.note-body.dim{color:var(--dim);font-size:10.5px}
+.eq-list{margin:12px 0 0;display:flex;flex-direction:column;gap:7px}
+.eq-list p{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:0;padding-bottom:7px;border-bottom:1px dashed rgba(160,200,240,.12)}
+.eq-list p:last-child{border-bottom:0}
+.eq-list span{font-size:10px;color:var(--dim)}
+.eq-list b{font-family:var(--font-mono);font-size:11.5px;font-weight:500;color:#dceefb;text-align:right}
+.perspective-demo{height:88px;margin-top:14px;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:#07121d}
+.grid-plane{
+  height:100%;
+  background-image:linear-gradient(rgba(120,200,245,.25) 1px,transparent 1px),linear-gradient(90deg,rgba(120,200,245,.25) 1px,transparent 1px);
+  background-size:34px 34px;
+  transform:perspective(180px) rotateX(38deg) translateY(6px) scale(1.35);
+}
+.lens-list{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:9px}
+.lens-list li{display:flex;justify-content:space-between;gap:10px;font-size:10.5px;color:var(--muted);border-bottom:1px dashed rgba(160,200,240,.1);padding-bottom:8px}
+.lens-list li:last-child{border-bottom:0;padding-bottom:0}
+.lens-list b{font-family:var(--font-mono);font-weight:500;font-size:10px;white-space:nowrap}
+.lens-list .barrel{color:var(--barrel)}
+.lens-list .pincushion{color:var(--pincushion)}
+.lens-list .neutral{color:var(--mint)}
+.end-strip{
+  margin-top:56px;padding:52px 20px 8px;border-top:1px solid var(--line);
+  display:flex;align-items:flex-end;justify-content:space-between;gap:30px;
+}
+.end-strip p{
+  margin:0;font-size:clamp(26px,3.4vw,44px);line-height:1.3;font-weight:300;
+  letter-spacing:.02em;color:#dfeaf5;
+}
+.end-strip .btn{flex:0 0 auto;margin-bottom:8px}
+
+/* ------------------------------------------------ footer */
+.site-footer{padding:0 clamp(20px,4vw,54px);border-top:1px solid var(--line);background:rgba(4,9,15,.6)}
+.footer-inner{
+  width:min(1480px,100%);margin:0 auto;padding:26px 0;
+  display:flex;align-items:center;justify-content:space-between;gap:20px;
+  font-size:10.5px;color:var(--dim);
+}
+.footer-brand{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;font-weight:600}
+.footer-brand em{display:block;font-family:var(--font-mono);font-style:normal;font-size:7.5px;letter-spacing:.22em;color:var(--dim);font-weight:400}
+.footer-inner a{color:var(--muted);transition:.2s}
+.footer-inner a:hover{color:var(--cyan)}
+
+/* ------------------------------------------------ toast */
+.toast{
+  position:fixed;left:50%;bottom:28px;transform:translate(-50%,20px);
+  z-index:80;padding:10px 18px;border-radius:10px;
+  background:rgba(8,20,32,.95);border:1px solid rgba(85,214,255,.35);
+  font-size:12px;color:#dff7ff;opacity:0;pointer-events:none;transition:.3s;
+  box-shadow:0 16px 40px -12px rgba(0,0,0,.8);
+}
+.toast.is-visible{opacity:1;transform:translate(-50%,0)}
+
+/* ------------------------------------------------ reveal */
+.reveal{opacity:0;transform:translateY(18px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
+.reveal.is-in{opacity:1;transform:none}
+
+/* ------------------------------------------------ responsive */
+@media (max-width:1240px){
+  .lab-grid{grid-template-columns:272px minmax(0,1fr) 286px;gap:16px}
+  .read-grid b{font-size:13px}
+  .read-grid .big{font-size:23px}
+}
+@media (max-width:1100px){
+  .nav-links{display:none}
+  .hero-inner{grid-template-columns:1fr;gap:54px}
+  .hero{padding-top:118px}
+  .hero-visual{justify-content:flex-start}
+  .hero-card{transform:none;max-width:640px}
+  .lab-grid{grid-template-columns:280px minmax(0,1fr);grid-template-areas:"controls stage" "readouts readouts"}
+  .controls{grid-area:controls}
+  .stage{grid-area:stage}
+  .readouts{grid-area:readouts;display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+  .cause-grid{grid-template-columns:1fr}
+  .cause-cards{grid-template-columns:1fr 1fr 1fr;grid-template-rows:none}
+  .correct-grid{grid-template-columns:1fr}
+  .quiz-grid{grid-template-columns:repeat(2,1fr)}
+  .notes-grid{grid-template-columns:1fr 1fr}
+}
+@media (max-width:820px){
+  .lab-grid{grid-template-columns:1fr;grid-template-areas:"controls" "stage" "readouts"}
+  .readouts{grid-template-columns:1fr}
+  .charts{grid-template-columns:1fr}
+  .cause-cards{grid-template-columns:1fr}
+  .formula-strip{grid-template-columns:1fr 1fr}
+  .section-head{flex-direction:column;align-items:flex-start;gap:14px}
+  .section-title{gap:12px}
+  .section-title h2 em{display:none}
+  .hero-stats{gap:20px 26px}
+  .quiz-grid{grid-template-columns:1fr 1fr}
+  .end-strip{flex-direction:column;align-items:flex-start}
+}
+@media (max-width:560px){
+  body{font-size:14px}
+  .site-nav{padding:14px 18px}
+  .brand-text{font-size:13px}
+  .nav-cta{padding:8px 12px;font-size:12px}
+  .hero{padding:104px 18px 80px;min-height:auto}
+  .h1-cn{font-size:clamp(74px,24vw,120px)}
+  .h1-en{letter-spacing:.32em;font-size:10px}
+  .hero-actions .btn{flex:1}
+  .hero-stats{display:grid;grid-template-columns:1fr 1fr}
+  .hero-card{padding:10px;border-radius:18px}
+  .hero-scroll{display:none}
+  .section{padding:56px 18px}
+  .quiz-grid{grid-template-columns:1fr}
+  .notes-grid{grid-template-columns:1fr}
+  .formula-strip{grid-template-columns:1fr}
+  .readouts{display:flex}
+  .view-hint{display:none}
+  .seg-view{max-width:none}
+  .footer-inner{flex-direction:column;align-items:flex-start;gap:10px}
+  .end-strip{padding-top:36px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
+  .reveal{opacity:1;transform:none}
+}
+
+</style>
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="site-nav" id="top">
+  <a class="brand" href="#top" aria-label="回到顶部">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 40 40" width="30" height="30"><path d="M4 15c6-6 26-6 32 0M4 25c6 6 26 6 32 0" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="20" cy="20" r="3.4" fill="currentColor"/></svg>
+    </span>
+    <span class="brand-text">畸变实验室<em>DISTORTION LAB</em></span>
+  </a>
+  <nav class="nav-links" aria-label="章节导航">
+    <a href="#lab">实验台</a>
+    <a href="#cause">成因</a>
+    <a href="#correct">校正</a>
+    <a href="#quiz">辨认</a>
+    <a href="#notes">笔记</a>
+  </nav>
+  <a class="nav-cta" href="#lab">开始调参 <span aria-hidden="true">↗</span></a>
+</header>
+
+<main>
+  <!-- ================= HERO ================= -->
+  <section class="hero" id="hero">
+    <div class="hero-aura" aria-hidden="true"></div>
+    <div class="hero-inner">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="pulse-dot"></span>几何光学 · 像差专题 03</p>
+        <h1>
+          <span class="h1-cn">畸变</span>
+          <span class="h1-en" aria-hidden="true">DISTORTION</span>
+        </h1>
+        <p class="lede">画面没有变糊，只是位置错了。<br>一个可以把畸变拆开、调参、读数、校正的交互实验室。</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#lab">进入实验台 <span aria-hidden="true">→</span></a>
+          <a class="btn btn-ghost" href="#cause">畸变从哪来 <span aria-hidden="true">↓</span></a>
+        </div>
+        <ul class="hero-stats">
+          <li><strong>q ∝ ω²</strong><span>相对畸变随视场平方增长</span></li>
+          <li><strong>3 类</strong><span>桶形 / 枕形 / 胡子</span></li>
+          <li><strong>可逆</strong><span>软件反演即可校正</span></li>
+        </ul>
+      </div>
+
+      <div class="hero-visual">
+        <div class="hero-card">
+          <div class="hero-card-head">
+            <span class="tag"><i></i>LIVE WARP</span>
+            <span class="mono" id="heroQ">q<sub>edge</sub> = −16.0%</span>
+          </div>
+          <div class="hero-canvas-wrap">
+            <canvas id="heroCanvas" width="640" height="460" role="img" aria-label="拖动下方滑块，观察桶形与枕形畸变"></canvas>
+            <div class="hero-badge" id="heroBadge">桶形 <em>BARREL</em></div>
+            <div class="hero-ticks" aria-hidden="true"><span>0</span><span>50</span><span>100</span></div>
+          </div>
+          <div class="hero-card-foot">
+            <div class="hero-slider-row">
+              <span class="mono">桶形</span>
+              <input id="heroSlider" type="range" min="-22" max="30" step="0.5" value="-16" aria-label="边缘相对畸变">
+              <span class="mono">枕形</span>
+            </div>
+            <p class="hint">拖动滑块 · 观察网格如何弯曲</p>
+          </div>
+        </div>
+        <div class="hero-note mono" aria-hidden="true">FIG.01 — RADIAL MAPPING</div>
+      </div>
+    </div>
+    <div class="hero-scroll" aria-hidden="true"><span>向下滚动</span><i></i></div>
+  </section>
+
+  <!-- ================= LAB ================= -->
+  <section class="section lab" id="lab">
+    <div class="section-head">
+      <div class="section-title">
+        <span class="sec-index">01</span>
+        <h2>实验台<em>BENCH</em></h2>
+      </div>
+      <p class="section-sub">把畸变调到看得见，再把它读出来。所有参数实时联动。</p>
+    </div>
+
+    <div class="lab-grid">
+      <!-- 参数面板 -->
+      <aside class="panel controls" aria-label="参数面板">
+        <div class="panel-head">
+          <h3>参数面板</h3>
+          <button class="mini-btn" id="resetBtn" type="button">恢复默认</button>
+        </div>
+
+        <div class="control-group">
+          <span class="group-label">镜头预设</span>
+          <div class="preset-grid" role="group" aria-label="镜头预设">
+            <button class="preset is-active" type="button" data-preset="wide">广角<small>24mm</small></button>
+            <button class="preset" type="button" data-preset="normal">标准<small>50mm</small></button>
+            <button class="preset" type="button" data-preset="tele">长焦<small>135mm</small></button>
+            <button class="preset" type="button" data-preset="ultra">超广角<small>14mm</small></button>
+          </div>
+          <p class="note" id="presetNote">24 mm 广角：前组强、后组弱，边缘放大率被压低，典型桶形。</p>
+        </div>
+
+        <div class="control-group">
+          <div class="slider-head">
+            <label for="fieldRange">视场半角 <span class="sym">ω</span></label>
+            <output id="fieldVal" for="fieldRange">40°</output>
+          </div>
+          <input id="fieldRange" class="range" type="range" min="8" max="45" step="1" value="40">
+          <p class="hint">画幅对角线方向的半视场；越大，边缘的弯曲越剧烈。</p>
+        </div>
+
+        <div class="control-group">
+          <div class="slider-head">
+            <label for="qRange">边缘相对畸变 <span class="sym">q<sub>e</sub></span></label>
+            <output id="qVal" for="qRange">−12.0%</output>
+          </div>
+          <input id="qRange" class="range" type="range" min="-22" max="30" step="0.5" value="-12">
+          <p class="hint">负值 = 桶形，正值 = 枕形。四角是最大视场处。</p>
+        </div>
+
+        <div class="control-group">
+          <div class="slider-head">
+            <label for="k2Range">高阶项 <span class="sym">k₂</span></label>
+            <output id="k2Val" for="k2Range">+3.0%</output>
+          </div>
+          <input id="k2Range" class="range" type="range" min="0" max="20" step="0.5" value="3">
+          <p class="hint">k₂ 让曲线在中段弯折；配合正 q<sub>e</sub> 会出现“胡子畸变”。</p>
+        </div>
+
+        <div class="control-group">
+          <span class="group-label">显示设置</span>
+          <div class="seg seg-scene" id="sceneSeg" role="group" aria-label="场景">
+            <button type="button" class="is-active" data-scene="facade">建筑</button>
+            <button type="button" data-scene="grid">网格</button>
+          </div>
+          <label class="switch-row" for="gridToggle">
+            <span>网格叠加</span>
+            <input type="checkbox" id="gridToggle">
+            <i class="switch" aria-hidden="true"></i>
+          </label>
+          <label class="switch-row" for="ringToggle">
+            <span>视场标记</span>
+            <input type="checkbox" id="ringToggle" checked>
+            <i class="switch" aria-hidden="true"></i>
+          </label>
+        </div>
+
+        <div class="formula-box">
+          <span class="group-label">本页使用的映射</span>
+          <p class="formula">q(ρ) = q<sub>e</sub>ρ² + k₂ρ²(ρ²−1)</p>
+          <p class="formula">ρ = tanθ / tanω<sub>max</sub></p>
+          <p class="formula dim">y′ = f·tanθ · (1 + q)</p>
+          <p class="hint">教学模型：径向对称、单色、忽略其他像差。数值用于演示，不代表具体镜头实测。</p>
+        </div>
+      </aside>
+
+      <!-- 中间舞台 -->
+      <div class="stage">
+        <figure class="card image-card">
+          <header class="card-head">
+            <div>
+              <h3>畸变影像</h3>
+              <p>点不糊，线会弯</p>
+            </div>
+            <div class="card-tools">
+              <span class="badge is-barrel" id="typeBadge">桶形</span>
+              <button class="icon-btn" id="saveBtn" type="button" title="保存当前画面为 PNG" aria-label="保存当前画面">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v11m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+              </button>
+            </div>
+          </header>
+
+          <div class="canvas-wrap" id="imageWrap">
+            <canvas id="imageCanvas" width="720" height="468" role="img" aria-label="建筑场景的畸变影像，直线随视场弯曲"></canvas>
+            <svg class="ring-overlay" id="ringOverlay" viewBox="0 0 720 468" preserveAspectRatio="none" aria-hidden="true"><g id="ringGroup"></g></svg>
+            <div class="hud hud-tl">
+              <span>四角</span><b id="hudCorner">−12.0%</b>
+            </div>
+            <div class="hud hud-br">
+              <span id="hudField">θ 30.0°</span><b id="hudQ">−6.4%</b>
+            </div>
+            <div class="compare-handle" id="compareHandle" hidden role="slider" tabindex="0" aria-label="理想与畸变的分割线" aria-valuemin="6" aria-valuemax="94" aria-valuenow="50">
+              <i></i><span>⇔</span>
+            </div>
+            <div class="compare-labels" id="compareLabels" hidden>
+              <span>理想</span><span>畸变</span>
+            </div>
+          </div>
+
+          <div class="view-row">
+            <div class="seg seg-view" id="viewSeg" role="group" aria-label="视图模式">
+              <button type="button" class="is-active" data-view="distorted">畸变图</button>
+              <button type="button" data-view="compare">对比滑动</button>
+              <button type="button" data-view="ideal">理想图</button>
+            </div>
+            <span class="mono view-hint" id="viewHint">拖动参数看变化</span>
+          </div>
+          <figcaption>画面中央的方格几乎不变，越靠边弯得越明显——这就是“放大率随视场变化”。</figcaption>
+        </figure>
+
+        <figure class="card diagram-card">
+          <header class="card-head">
+            <div>
+              <h3>光路示意</h3>
+              <p>主光线落在哪，像就在哪</p>
+            </div>
+            <span class="mono" id="diagramF">f = 24 mm</span>
+          </header>
+          <canvas id="diagramCanvas" width="760" height="300" role="img" aria-label="光路示意：不同视场的主光线与理想、实际像点"></canvas>
+          <div class="diagram-legend">
+            <span><i class="dot ideal"></i>理想像点</span>
+            <span><i class="dot actual"></i>实际像点</span>
+            <span><i class="line"></i>主光线</span>
+            <span class="mono" id="diagramDelta">δy′ = −0.89 mm</span>
+          </div>
+        </figure>
+      </div>
+
+      <!-- 读数 -->
+      <aside class="readouts" aria-label="实时读数">
+        <div class="card read-card">
+          <header class="read-head">
+            <h3>实时读数</h3>
+            <span class="live"><i></i>LIVE</span>
+          </header>
+          <p class="read-field">当前视场 <b id="rTheta">30.0°</b></p>
+          <div class="read-grid">
+            <div><span>理想像高 y₀</span><b id="rIdeal">13.86 mm</b></div>
+            <div><span>实际像高 y′</span><b id="rActual">12.97 mm</b></div>
+            <div><span>像高偏移 δy′</span><b id="rDelta">−0.89 mm</b></div>
+            <div><span>四角畸变</span><b id="rEdge">−12.0%</b></div>
+            <div class="wide"><span>相对畸变 q</span><b class="big" id="rQ">−6.4%</b></div>
+          </div>
+          <div class="meter" aria-hidden="true">
+            <span class="meter-zero"></span>
+            <span class="meter-fill" id="meterFill"></span>
+            <span class="meter-thumb" id="meterThumb"></span>
+            <span class="meter-cap left">桶形</span>
+            <span class="meter-cap right">枕形</span>
+          </div>
+          <p class="auto-read" id="autoRead">桶形：边缘放大率低于中心，四角被拉向中心。</p>
+        </div>
+
+        <div class="card notes-card">
+          <h3>讲解要点</h3>
+          <ol class="points">
+            <li><b>位置错，不是清晰度错。</b>点仍然是一个点，只是像高偏离了理想位置；所以畸变不会让画面发虚。</li>
+            <li><b>三级畸变看视场。</b>相对畸变 q 随视场平方增长，像高偏差 δy′ 随视场三次方增长。</li>
+            <li><b>符号看边缘。</b>边缘放大率小于中心 → 桶形；大于中心 → 枕形；中段桶形、四角枕形 → 胡子形。</li>
+            <li><b>光阑与对称性。</b>光阑位置、镜头前后组的对称性会改变畸变的符号和大小。</li>
+            <li><b>校正靠反演。</b>软件用标定得到的模型把像素映射回理想位置；不是锐化，也不能补回没拍到的视场。</li>
+          </ol>
+        </div>
+      </aside>
+    </div>
+
+    <!-- 双曲线 -->
+    <figure class="card charts-card">
+      <header class="card-head">
+        <div>
+          <h3>畸变曲线</h3>
+          <p>同一视场，两种读法</p>
+        </div>
+        <span class="hint">在曲线上拖动，选择视场 θ</span>
+      </header>
+      <div class="charts">
+        <div class="chart">
+          <div class="chart-title">
+            <h4>相对畸变 <span class="sym">q(θ)</span></h4>
+            <span class="unit">%</span>
+          </div>
+          <svg id="chartQ" viewBox="0 0 640 250" role="img" aria-label="相对畸变随视场角变化的曲线"></svg>
+        </div>
+        <div class="chart">
+          <div class="chart-title">
+            <h4>像高偏移 <span class="sym">δy′(θ)</span></h4>
+            <span class="unit">mm</span>
+          </div>
+          <svg id="chartD" viewBox="0 0 640 250" role="img" aria-label="像高偏移随视场角变化的曲线"></svg>
+        </div>
+      </div>
+      <p class="chart-foot">拖动任一曲线上的标记，影像、光路与读数会同步到对应视场。</p>
+    </figure>
+  </section>
+
+  <!-- ================= CAUSE ================= -->
+  <section class="section cause" id="cause">
+    <div class="section-head">
+      <div class="section-title">
+        <span class="sec-index">02</span>
+        <h2>成因<em>CAUSE</em></h2>
+      </div>
+      <p class="section-sub">为什么主光线会“落错地方”？拖一下光阑就明白了。</p>
+    </div>
+
+    <div class="cause-grid">
+      <div class="card stop-demo">
+        <header class="card-head">
+          <div>
+            <h3>光阑放在哪？</h3>
+            <p>拖一拖，看主光线落点</p>
+          </div>
+          <span class="badge" id="stopBadge">枕形</span>
+        </header>
+        <canvas id="stopCanvas" width="720" height="360" role="img" aria-label="光阑位置与主光线落点的示意"></canvas>
+        <div class="stop-controls">
+          <span class="mono">前</span>
+          <input id="stopSlider" class="range" type="range" min="-1" max="1" step="0.01" value="0.6" aria-label="光阑位置">
+          <span class="mono">后</span>
+        </div>
+        <p class="stop-caption" id="stopCaption">光阑在透镜之后：边缘主光线被“送”得更远，四角被拉开——枕形。</p>
+      </div>
+
+      <div class="cause-cards">
+        <article class="cause-card">
+          <span class="cause-kicker">01 / 光阑</span>
+          <h3>光阑位置改写主光线</h3>
+          <p>主光线是穿过光阑中心的那条光线。光阑前移或后移，主光线在透镜上的高度随之改变，出射方向也被改写，最终落在像面上的高度就不再等于理想值。</p>
+          <p class="mini">口径不变，像仍然清晰；改变的是“位置”。</p>
+        </article>
+        <article class="cause-card">
+          <span class="cause-kicker">02 / 视场</span>
+          <h3>越靠边，错得越多</h3>
+          <p>三级畸变里，像高偏差正比于视场的三次方：δy′ ∝ ω³；换算成相对畸变，就是 q ∝ ω²。所以中心几乎为零，四角最明显。</p>
+          <div class="mini-chart" aria-hidden="true">
+            <svg viewBox="0 0 260 90"><path d="M6 82 C 70 80, 170 60, 254 8" fill="none" stroke="#ffb86b" stroke-width="2.4"/><path d="M6 82 H 254 M6 82 V 6" stroke="rgba(255,255,255,.18)" stroke-width="1"/><text x="210" y="30" fill="#ffb86b" font-size="11">∝ θ³</text></svg>
+          </div>
+        </article>
+        <article class="cause-card">
+          <span class="cause-kicker">03 / 对称</span>
+          <h3>对称结构更“直”</h3>
+          <p>前后组近似对称的镜头，畸变会互相抵消，所以标准镜头往往很直；广角镜头前组明显更大、更强，桶形就压不住了。鱼眼则干脆放弃直线投影，换一个超大视场。</p>
+          <p class="mini">对称性是一种“免费的校正”。</p>
+        </article>
+      </div>
+    </div>
+
+    <div class="formula-strip">
+      <div><span class="mono">理想</span><b>y₀ = f · tanω</b></div>
+      <div><span class="mono">实际</span><b>y′ = y₀ + δy′</b></div>
+      <div><span class="mono">相对畸变</span><b>q = δy′ / y₀</b></div>
+      <div><span class="mono">三级近似</span><b>q ≈ k₁ω²</b></div>
+    </div>
+  </section>
+
+  <!-- ================= CORRECT ================= -->
+  <section class="section correct" id="correct">
+    <div class="section-head">
+      <div class="section-title">
+        <span class="sec-index">03</span>
+        <h2>校正<em>CORRECT</em></h2>
+      </div>
+      <p class="section-sub">把弯曲的直线“拉”回来——这正是 Lightroom、OpenCV 在后台做的事。</p>
+    </div>
+
+    <div class="correct-grid">
+      <div class="card correct-visual">
+        <div class="canvas-wrap correct-wrap">
+          <canvas id="correctCanvas" width="720" height="468" role="img" aria-label="校正滑块作用下的畸变影像"></canvas>
+          <div class="hud hud-tl"><span>残余畸变</span><b id="correctResidual">−18.0%</b></div>
+          <div class="hud hud-br"><span>校正强度</span><b id="correctPct">0%</b></div>
+        </div>
+        <div class="correct-controls">
+          <button class="btn btn-small btn-primary" id="autoCorrectBtn" type="button">一键校正</button>
+          <input id="correctSlider" class="range" type="range" min="0" max="100" step="1" value="0" aria-label="校正强度">
+          <label class="switch-row compact" for="correctGrid">
+            <span>网格</span>
+            <input type="checkbox" id="correctGrid" checked>
+            <i class="switch" aria-hidden="true"></i>
+          </label>
+        </div>
+      </div>
+
+      <div class="correct-copy">
+        <div class="correct-step">
+          <span class="step-num">01</span>
+          <div><h3>标定</h3><p>拍一张棋盘格或点阵靶标，用已知的直线求出每个视场的实际像高，拟合出 k₁、k₂ 等系数。</p></div>
+        </div>
+        <div class="correct-step">
+          <span class="step-num">02</span>
+          <div><h3>反演</h3><p>对输出图像的每个像素，按模型找到它“本来应该在”的输入位置，重采样。直线就回来了。</p></div>
+        </div>
+        <div class="correct-step">
+          <span class="step-num">03</span>
+          <div><h3>取舍</h3><p>校正会裁掉或拉伸边缘视场；强畸变下四角还会变软。参数过头，会出现反向畸变。</p></div>
+        </div>
+        <div class="callout">
+          <span class="mono">注意</span>
+          <p>“校正”不是“锐化”。畸变从来不影响清晰度，它只改变位置。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= QUIZ ================= -->
+  <section class="section quiz" id="quiz">
+    <div class="section-head">
+      <div class="section-title">
+        <span class="sec-index">04</span>
+        <h2>辨认<em>SPOT IT</em></h2>
+      </div>
+      <p class="section-sub">四张图，判断它们分别属于哪种畸变。点一下就知道。</p>
+    </div>
+
+    <div class="quiz-bar">
+      <div class="quiz-score">答对 <b id="quizScore">0</b> / 4</div>
+      <button class="mini-btn" id="quizReset" type="button">换一组</button>
+    </div>
+    <div class="quiz-grid" id="quizGrid"></div>
+    <p class="quiz-foot" id="quizFoot">先看直线的弯曲方向，再看四角是内收还是外拉。</p>
+  </section>
+
+  <!-- ================= NOTES ================= -->
+  <section class="section notes" id="notes">
+    <div class="section-head">
+      <div class="section-title">
+        <span class="sec-index">05</span>
+        <h2>笔记<em>NOTES</em></h2>
+      </div>
+      <p class="section-sub">带走这页最值得记住的几件事。</p>
+    </div>
+
+    <div class="notes-grid">
+      <article class="note-card big">
+        <span class="cause-kicker">公式</span>
+        <h3>一张图记住畸变</h3>
+        <div class="eq-list">
+          <p><span>理想像高</span><b>y₀ = f·tanω</b></p>
+          <p><span>实际像高</span><b>y′ = y₀(1 + q)</b></p>
+          <p><span>相对畸变</span><b>q = (y′ − y₀) / y₀</b></p>
+          <p><span>径向模型</span><b>r′ = r(1 + k₁r² + k₂r⁴)</b></p>
+        </div>
+        <p class="note-body">桶形取负、枕形取正。四角是最大视场，也是畸变最容易被看见的地方。</p>
+      </article>
+
+      <article class="note-card">
+        <span class="cause-kicker">易混</span>
+        <h3>畸变 ≠ 透视变形</h3>
+        <p class="note-body">广角贴近拍摄时，近大远小和边缘拉伸属于<b>透视投影</b>，不是镜头畸变。判断方法：畸变会把<b>直线</b>弯成弧；透视不会把直线变弯，只会让它们汇聚。</p>
+        <div class="perspective-demo" aria-hidden="true">
+          <div class="grid-plane"></div>
+        </div>
+      </article>
+
+      <article class="note-card">
+        <span class="cause-kicker">实拍</span>
+        <h3>常见镜头的大致倾向</h3>
+        <ul class="lens-list">
+          <li><span>超广角 14–20mm</span><b class="barrel">桶形 −3% ~ −8%</b></li>
+          <li><span>广角 24–28mm</span><b class="barrel">桶形 −1% ~ −4%</b></li>
+          <li><span>标准 50mm</span><b class="neutral">通常 &lt; 1%</b></li>
+          <li><span>长焦 85–200mm</span><b class="pincushion">枕形 +1% ~ +3%</b></li>
+          <li><span>鱼眼</span><b class="barrel">极强桶形 / 特殊投影</b></li>
+        </ul>
+      </article>
+
+      <article class="note-card">
+        <span class="cause-kicker">方法</span>
+        <h3>这页的模型边界</h3>
+        <p class="note-body">本页只讨论<b>径向、单色</b>的几何畸变，忽略切向畸变、色差、彗差等。多项式参数用于教学演示，不能直接当作某支镜头的实测标定结果。</p>
+        <p class="note-body dim">真实校正常用 Brown–Conrady 模型：同时包含 k₁、k₂、k₃ 与切向项 p₁、p₂。</p>
+      </article>
+    </div>
+
+    <div class="end-strip">
+      <p>畸变不会让照片变糊，<br>但它会让直线说谎。</p>
+      <a class="btn btn-ghost" href="#lab">回到实验台 <span aria-hidden="true">↑</span></a>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <span class="brand-mark small" aria-hidden="true">
+        <svg viewBox="0 0 40 40" width="24" height="24"><path d="M4 15c6-6 26-6 32 0M4 25c6 6 26 6 32 0" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="20" cy="20" r="3.4" fill="currentColor"/></svg>
+      </span>
+      <span>畸变实验室<em>DISTORTION LAB</em></span>
+    </div>
+    <p>几何光学 · 像差专题 03 · 交互式讲义</p>
+    <a href="#top">回到顶部 ↑</a>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* =========================================================
+   畸变实验室 — Distortion Lab
+   radial distortion model + synthetic scene warping + charts
+   ========================================================= */
+(() => {
+'use strict';
+
+/* ---------------------------------------------------------
+   0. utils
+--------------------------------------------------------- */
+const $  = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const RAD = Math.PI / 180;
+const MINUS = '\u2212';
+const REDUCE = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function signedPct(v, digits = 1){
+  if (Math.abs(v) < 0.05) return '0.' + '0'.repeat(digits) + '%';
+  return (v < 0 ? MINUS : '+') + Math.abs(v).toFixed(digits) + '%';
+}
+function unsignedPct(v, digits = 1){
+  return (v < 0 ? MINUS : '') + Math.abs(v).toFixed(digits) + '%';
+}
+function signedNum(v, digits = 2, unit = ''){
+  if (Math.abs(v) < 0.0005) return (0).toFixed(digits) + unit;
+  return (v < 0 ? MINUS : '+') + Math.abs(v).toFixed(digits) + unit;
+}
+function fmtDeg(v){ return v.toFixed(1) + '°'; }
+
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function rr(ctx, x, y, w, h, r){
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function niceStep(max, target = 4){
+  const raw = max / target;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / mag;
+  const m = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+  return m * mag;
+}
+function niceTop(max, target = 4){
+  const step = niceStep(Math.max(max, 1e-6), target);
+  return Math.ceil(max / step - 1e-9) * step;
+}
+
+/* ---------------------------------------------------------
+   1. model
+--------------------------------------------------------- */
+// qe, k2 in percent; rho normalised to the frame corner
+function qAtRho(rho, qe, k2){
+  const t = rho * rho;
+  return (qe * t + k2 * t * (t - 1)) / 100;
+}
+function qAtTheta(thetaDeg, fieldDeg, qe, k2){
+  const rho = clamp(Math.tan(thetaDeg * RAD) / Math.tan(fieldDeg * RAD), 0, 1.35);
+  return qAtRho(rho, qe, k2);
+}
+function classify(qe, k2){
+  const mid = qAtRho(0.55, qe, k2) * 100;
+  if (Math.abs(qe) < 0.7 && Math.abs(mid) < 0.5) return 'none';
+  if (qe > 0.8 && mid < -0.35) return 'mustache';
+  return qe < 0 ? 'barrel' : 'pincushion';
+}
+const TYPE_LABEL = { barrel: '桶形', pincushion: '枕形', mustache: '胡子形', none: '无明显畸变' };
+const TYPE_CLASS = { barrel: 'is-barrel', pincushion: 'is-pincushion', mustache: 'is-mustache', none: 'is-none' };
+const TYPE_COLOR = { barrel: '#4cc9f0', pincushion: '#ffb86b', mustache: '#c79bff', none: '#5ce1b8' };
+
+function modelAt(state, theta = state.theta){
+  const rho = clamp(Math.tan(theta * RAD) / Math.tan(state.field * RAD), 0, 1.35);
+  const q = qAtRho(rho, state.qe, state.k2);
+  const y0 = state.f * Math.tan(theta * RAD);
+  const y = y0 * (1 + q);
+  return { theta, rho, q, qe: state.qe / 100, y0, y, dy: y - y0, type: classify(state.qe, state.k2) };
+}
+
+/* ---------------------------------------------------------
+   2. scenes
+--------------------------------------------------------- */
+const SRC_W = 1600, SRC_H = 1040;
+const FW = 1000, FH = 650, FCX = 800, FCY = 520;   // frame inside source
+
+function makeCanvas(w, h){
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  return c;
+}
+
+function drawStars(g, n, rng, yMax){
+  for (let i = 0; i < n; i++){
+    const x = rng() * SRC_W, y = rng() * yMax;
+    const a = 0.15 + rng() * 0.55;
+    g.fillStyle = `rgba(220,240,255,${a})`;
+    g.fillRect(x, y, rng() > 0.85 ? 2 : 1, rng() > 0.85 ? 2 : 1);
+  }
+}
+
+function buildFacade(withGrid){
+  const c = makeCanvas(SRC_W, SRC_H);
+  const g = c.getContext('2d');
+  const rng = mulberry32(20261126);
+
+  /* sky */
+  const sky = g.createLinearGradient(0, 0, 0, 380);
+  sky.addColorStop(0, '#040b14');
+  sky.addColorStop(.45, '#0c2138');
+  sky.addColorStop(.75, '#1d3b57');
+  sky.addColorStop(1, '#3a4358');
+  g.fillStyle = sky;
+  g.fillRect(0, 0, SRC_W, 380);
+  drawStars(g, 90, rng, 300);
+
+  /* sun glow */
+  const sun = g.createRadialGradient(1250, 190, 8, 1250, 190, 330);
+  sun.addColorStop(0, 'rgba(255,226,176,.9)');
+  sun.addColorStop(.14, 'rgba(255,196,132,.35)');
+  sun.addColorStop(.5, 'rgba(255,160,110,.09)');
+  sun.addColorStop(1, 'rgba(255,160,110,0)');
+  g.fillStyle = sun;
+  g.fillRect(860, 0, 740, 520);
+  g.beginPath(); g.arc(1250, 190, 34, 0, Math.PI * 2);
+  g.fillStyle = 'rgba(255,236,206,.92)'; g.fill();
+
+  /* clouds */
+  g.save();
+  g.filter = 'blur(16px)';
+  for (let i = 0; i < 5; i++){
+    const cx = 120 + rng() * 1380, cy = 90 + rng() * 160;
+    const w = 180 + rng() * 320, h = 12 + rng() * 22;
+    g.fillStyle = `rgba(190,205,230,${0.05 + rng() * 0.06})`;
+    g.beginPath(); g.ellipse(cx, cy, w, h, 0, 0, Math.PI * 2); g.fill();
+  }
+  g.restore();
+
+  /* building body */
+  const wall = g.createLinearGradient(0, 250, 0, 940);
+  wall.addColorStop(0, '#dcc7a7');
+  wall.addColorStop(.35, '#c9ad8a');
+  wall.addColorStop(.75, '#b0916e');
+  wall.addColorStop(1, '#8c6f54');
+  g.fillStyle = wall;
+  g.fillRect(0, 250, SRC_W, 700);
+
+  /* wall side falling-off */
+  const shadeL = g.createLinearGradient(0, 0, 240, 0);
+  shadeL.addColorStop(0, 'rgba(25,18,14,.5)');
+  shadeL.addColorStop(1, 'rgba(25,18,14,0)');
+  g.fillStyle = shadeL; g.fillRect(0, 250, 240, 700);
+  const shadeR = g.createLinearGradient(SRC_W, 0, SRC_W - 260, 0);
+  shadeR.addColorStop(0, 'rgba(20,16,14,.48)');
+  shadeR.addColorStop(1, 'rgba(20,16,14,0)');
+  g.fillStyle = shadeR; g.fillRect(SRC_W - 260, 250, 260, 700);
+
+  /* cornice */
+  g.fillStyle = '#e8d6b8'; g.fillRect(0, 250, SRC_W, 18);
+  g.fillStyle = 'rgba(70,50,36,.35)'; g.fillRect(0, 268, SRC_W, 6);
+  g.fillStyle = '#f1e2c8'; g.fillRect(0, 274, SRC_W, 5);
+
+  /* frieze */
+  const frieze = g.createLinearGradient(0, 279, 0, 330);
+  frieze.addColorStop(0, '#1b2a38');
+  frieze.addColorStop(1, '#101b26');
+  g.fillStyle = frieze; g.fillRect(0, 279, SRC_W, 51);
+  g.fillStyle = 'rgba(230,210,180,.35)'; g.fillRect(0, 279, SRC_W, 1);
+
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.font = '600 25px "Cascadia Code", Consolas, "Microsoft YaHei", monospace';
+  g.fillStyle = '#efdcbc';
+  g.fillText('O B S E R V A T O R Y', FCX, 306);
+  g.font = '500 9px "Cascadia Code", Consolas, monospace';
+  g.fillStyle = 'rgba(240,225,200,.5)';
+  g.fillText('E S T .  1 9 0 3', FCX, 322);
+
+  /* stone joints */
+  g.strokeStyle = 'rgba(70,50,36,.14)';
+  g.lineWidth = 1;
+  for (let y = 350; y < 900; y += 62){
+    g.beginPath(); g.moveTo(0, y); g.lineTo(SRC_W, y); g.stroke();
+  }
+
+  /* windows */
+  const winW = 130, winH = 90, gapX = 40, gapY = 25;
+  const startX = 55, startY = 350;
+  for (let r = 0; r < 3; r++){
+    for (let col = 0; col < 9; col++){
+      const x = startX + col * (winW + gapX);
+      const y = startY + r * (winH + gapY);
+      const lit = rng() < 0.30;
+      drawWindow(g, x, y, winW, winH, lit, rng);
+    }
+  }
+
+  /* string course */
+  g.fillStyle = '#e4d1b2'; g.fillRect(0, 694, SRC_W, 7);
+  g.fillStyle = 'rgba(60,44,32,.4)'; g.fillRect(0, 701, SRC_W, 4);
+
+  /* ground floor */
+  const base = g.createLinearGradient(0, 705, 0, 940);
+  base.addColorStop(0, '#b59673');
+  base.addColorStop(.7, '#987a5c');
+  base.addColorStop(1, '#6f5741');
+  g.fillStyle = base; g.fillRect(0, 705, SRC_W, 235);
+
+  /* vertical rustication on ground floor */
+  g.strokeStyle = 'rgba(60,44,32,.22)';
+  for (let x = 0; x < SRC_W; x += 160){ g.beginPath(); g.moveTo(x, 705); g.lineTo(x, 920); g.stroke(); }
+
+  /* medallions */
+  drawMedallion(g, 545, 768, 27, false);
+  drawMedallion(g, 1055, 768, 27, true);
+
+  /* entrance */
+  drawEntrance(g, 720, 738, 160, 107);
+
+  /* wall lamps */
+  for (const lx of [688, 912]){
+    const glow = g.createRadialGradient(lx, 752, 1, lx, 752, 34);
+    glow.addColorStop(0, 'rgba(255,220,160,.7)');
+    glow.addColorStop(1, 'rgba(255,200,130,0)');
+    g.fillStyle = glow; g.fillRect(lx - 36, 716, 72, 72);
+    g.beginPath(); g.arc(lx, 752, 4, 0, Math.PI * 2); g.fillStyle = '#ffe6b8'; g.fill();
+  }
+
+  /* steps */
+  g.fillStyle = '#8d7055'; g.fillRect(640, 845, 320, 8);
+  g.fillStyle = '#7c6148'; g.fillRect(620, 853, 360, 8);
+  g.fillStyle = '#6b523c'; g.fillRect(600, 861, 400, 8);
+
+  /* plaza */
+  const plaza = g.createLinearGradient(0, 869, 0, SRC_H);
+  plaza.addColorStop(0, '#1a1d22');
+  plaza.addColorStop(1, '#0a0d12');
+  g.fillStyle = plaza; g.fillRect(0, 869, SRC_W, SRC_H - 869);
+  g.strokeStyle = 'rgba(210,190,160,.08)';
+  for (let i = -8; i <= 8; i++){
+    g.beginPath(); g.moveTo(FCX, 869); g.lineTo(FCX + i * 190, SRC_H); g.stroke();
+  }
+  for (let y = 890; y < SRC_H; y += 22){
+    g.beginPath(); g.moveTo(0, y); g.lineTo(SRC_W, y); g.stroke();
+  }
+  /* subtle reflection of warm windows in the plaza */
+  g.fillStyle = 'rgba(255,190,120,.07)';
+  for (let i = 0; i < 7; i++) g.fillRect(360 + i * 130, 875, 55, 60);
+
+  /* measurement grid overlay */
+  if (withGrid) drawOverlayGrid(g, 50, 'rgba(130,220,255,.30)', 'rgba(150,235,255,.5)');
+
+  /* frame vignette */
+  const vig = g.createRadialGradient(FCX, FCY, 260, FCX, FCY, 760);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(.62, 'rgba(0,0,0,.10)');
+  vig.addColorStop(1, 'rgba(0,0,0,.5)');
+  g.fillStyle = vig; g.fillRect(0, 0, SRC_W, SRC_H);
+
+  return { canvas: c, data: g.getImageData(0, 0, SRC_W, SRC_H) };
+}
+
+function drawWindow(g, x, y, w, h, lit, rng){
+  /* stone surround */
+  g.fillStyle = '#a58663';
+  rr(g, x - 5, y - 5, w + 10, h + 10, 2); g.fill();
+  g.fillStyle = 'rgba(255,240,215,.22)';
+  g.fillRect(x - 5, y - 5, w + 10, 2);
+
+  /* glass */
+  const glass = g.createLinearGradient(0, y, 0, y + h);
+  if (lit){
+    glass.addColorStop(0, '#ffd79b');
+    glass.addColorStop(.55, '#e8a75a');
+    glass.addColorStop(1, '#a96b2f');
+  } else {
+    glass.addColorStop(0, '#1a3b52');
+    glass.addColorStop(.5, '#0f2637');
+    glass.addColorStop(1, '#081521');
+  }
+  g.fillStyle = glass;
+  g.fillRect(x, y, w, h);
+
+  /* reflection */
+  if (!lit){
+    g.save();
+    g.beginPath(); g.rect(x, y, w, h); g.clip();
+    g.fillStyle = 'rgba(130,205,240,.12)';
+    g.beginPath();
+    g.moveTo(x + w * .55, y); g.lineTo(x + w * .9, y);
+    g.lineTo(x + w * .3, y + h); g.lineTo(x - w * .05, y + h);
+    g.closePath(); g.fill();
+    g.restore();
+  } else {
+    g.fillStyle = 'rgba(255,255,255,.18)';
+    g.fillRect(x + 8, y + 8, w - 16, 2);
+  }
+
+  /* mullions */
+  g.fillStyle = lit ? 'rgba(90,52,20,.55)' : 'rgba(5,13,20,.8)';
+  g.fillRect(x + w / 2 - 1.5, y, 3, h);
+  g.fillRect(x, y + h * .42, w, 3);
+  /* inner shadow */
+  g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 2;
+  g.strokeRect(x + 1, y + 1, w - 2, h - 2);
+
+  /* sill */
+  g.fillStyle = '#e7d4b6'; g.fillRect(x - 9, y + h + 4, w + 18, 7);
+  g.fillStyle = 'rgba(50,36,24,.4)'; g.fillRect(x - 9, y + h + 11, w + 18, 3);
+}
+
+function drawOverlayGrid(g, step, col, colMajor){
+  g.save();
+  g.lineWidth = 1;
+  const x0 = FCX - FW / 2, y0 = FCY - FH / 2;
+  for (let i = -30; i <= 30; i++){
+    const x = x0 + i * step;
+    if (x < 0 || x > SRC_W) continue;
+    g.strokeStyle = (i % 4 === 0) ? colMajor : col;
+    g.beginPath(); g.moveTo(x, 0); g.lineTo(x, SRC_H); g.stroke();
+  }
+  for (let i = -30; i <= 30; i++){
+    const y = y0 + i * step;
+    if (y < 0 || y > SRC_H) continue;
+    g.strokeStyle = (i % 4 === 0) ? colMajor : col;
+    g.beginPath(); g.moveTo(0, y); g.lineTo(SRC_W, y); g.stroke();
+  }
+  g.strokeStyle = 'rgba(150,235,255,.4)';
+  g.beginPath(); g.moveTo(FCX - 18, FCY); g.lineTo(FCX + 18, FCY); g.stroke();
+  g.beginPath(); g.moveTo(FCX, FCY - 18); g.lineTo(FCX, FCY + 18); g.stroke();
+  g.restore();
+}
+
+function drawMedallion(g, x, y, r, clock){
+  g.beginPath(); g.arc(x, y, r + 6, 0, Math.PI * 2);
+  g.fillStyle = 'rgba(60,44,30,.35)'; g.fill();
+  g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2);
+  g.fillStyle = '#d9c3a2'; g.fill();
+  g.lineWidth = 5; g.strokeStyle = '#7b6044'; g.stroke();
+  g.beginPath(); g.arc(x, y, r - 8, 0, Math.PI * 2);
+  g.strokeStyle = 'rgba(90,68,46,.5)'; g.lineWidth = 1; g.stroke();
+  if (clock){
+    g.strokeStyle = '#3a2b1d'; g.lineWidth = 2.4; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x - r * .42, y - r * .2); g.stroke();
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + r * .18, y + r * .5); g.stroke();
+    g.beginPath(); g.arc(x, y, 2.5, 0, Math.PI * 2); g.fillStyle = '#3a2b1d'; g.fill();
+  } else {
+    g.strokeStyle = '#6a5238'; g.lineWidth = 1.6;
+    for (let i = 0; i < 8; i++){
+      const a = i * Math.PI / 4;
+      g.beginPath();
+      g.moveTo(x + Math.cos(a) * r * .25, y + Math.sin(a) * r * .25);
+      g.lineTo(x + Math.cos(a) * r * .62, y + Math.sin(a) * r * .62);
+      g.stroke();
+    }
+  }
+}
+
+function drawEntrance(g, x, y, w, h){
+  const arch = h - w / 2;
+  /* recess */
+  g.beginPath();
+  g.moveTo(x, y + h);
+  g.lineTo(x, y + w / 2);
+  g.arc(x + w / 2, y + w / 2, w / 2, Math.PI, 0);
+  g.lineTo(x + w, y + h);
+  g.closePath();
+  g.fillStyle = '#070d13'; g.fill();
+  /* warm interior */
+  const glow = g.createLinearGradient(0, y + h, 0, y + h - 80);
+  glow.addColorStop(0, 'rgba(255,190,120,.42)');
+  glow.addColorStop(1, 'rgba(255,190,120,0)');
+  g.fillStyle = glow; g.fill();
+  /* frame */
+  g.lineWidth = 7; g.strokeStyle = '#6e553d'; g.stroke();
+  g.lineWidth = 2; g.strokeStyle = 'rgba(240,220,190,.3)'; g.stroke();
+  /* doors */
+  g.fillStyle = 'rgba(12,18,24,.9)';
+  g.fillRect(x + w / 2 - 1, y + w / 2, 2, h - w / 2);
+  g.strokeStyle = 'rgba(200,170,130,.25)'; g.lineWidth = 1;
+  g.strokeRect(x + 14, y + w / 2 + 8, w / 2 - 20, h - w / 2 - 12);
+}
+
+/* generic test-chart scene (grid + border + rings) */
+function buildChartScene(W, H, fw, fh, step, opts = {}){
+  const c = makeCanvas(W, H);
+  const g = c.getContext('2d');
+  const cx = W / 2, cy = H / 2;
+  const rng = mulberry32(77123);
+
+  const bg = g.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, opts.bg0 || '#06111d');
+  bg.addColorStop(1, opts.bg1 || '#0a1a2a');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+
+  /* faint stars / dust */
+  for (let i = 0; i < 60; i++){
+    g.fillStyle = `rgba(170,220,250,${0.04 + rng() * 0.08})`;
+    g.fillRect(rng() * W, rng() * H, 1, 1);
+  }
+
+  /* grid across the whole source */
+  const lineCol = opts.line || 'rgba(120,200,240,.2)';
+  const majorCol = opts.major || 'rgba(120,200,240,.4)';
+  const x0 = cx - fw / 2, y0 = cy - fh / 2;
+  g.lineWidth = opts.lineW || 1;
+  for (let i = -20; i <= 20; i++){
+    const x = x0 + i * step;
+    if (x >= 0 && x <= W){
+      g.strokeStyle = i % 4 === 0 ? majorCol : lineCol;
+      g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke();
+    }
+    const y = y0 + i * step;
+    if (y >= 0 && y <= H){
+      g.strokeStyle = i % 4 === 0 ? majorCol : lineCol;
+      g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke();
+    }
+  }
+
+  /* diagonals */
+  g.strokeStyle = opts.accentSoft || 'rgba(255,184,107,.18)';
+  g.lineWidth = 1;
+  g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + fw, y0 + fh); g.stroke();
+  g.beginPath(); g.moveTo(x0 + fw, y0); g.lineTo(x0, y0 + fh); g.stroke();
+
+  /* centred rings */
+  g.strokeStyle = opts.ring || 'rgba(255,184,107,.24)';
+  for (let r = step * 2; r < Math.min(fw, fh) * .55; r += step * 2){
+    g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
+  }
+
+  /* off-centre target */
+  const tx = cx + fw * 0.27, ty = cy - fh * 0.23;
+  g.strokeStyle = opts.accent || 'rgba(255,184,107,.75)';
+  g.lineWidth = 2;
+  g.beginPath(); g.arc(tx, ty, step * 1.05, 0, Math.PI * 2); g.stroke();
+  g.beginPath(); g.moveTo(tx - step * 1.5, ty); g.lineTo(tx + step * 1.5, ty); g.stroke();
+  g.beginPath(); g.moveTo(tx, ty - step * 1.5); g.lineTo(tx, ty + step * 1.5); g.stroke();
+
+  /* frame border */
+  g.strokeStyle = opts.border || 'rgba(165,230,255,.65)';
+  g.lineWidth = opts.borderW || 2;
+  g.strokeRect(x0 + 3, y0 + 3, fw - 6, fh - 6);
+  g.strokeStyle = 'rgba(165,230,255,.2)';
+  g.strokeRect(x0 + 12, y0 + 12, fw - 24, fh - 24);
+
+  /* corner blocks */
+  g.fillStyle = 'rgba(120,210,245,.28)';
+  const b = step * .42;
+  [[x0 + 26, y0 + 26], [x0 + fw - 26 - b, y0 + 26], [x0 + 26, y0 + fh - 26 - b], [x0 + fw - 26 - b, y0 + fh - 26 - b]]
+    .forEach(([x, y]) => g.fillRect(x, y, b, b));
+
+  /* caption */
+  g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  g.font = '600 13px "Cascadia Code", Consolas, monospace';
+  g.fillStyle = 'rgba(180,225,250,.75)';
+  g.fillText(opts.label || 'RADIAL TEST TARGET', x0 + 28, y0 + fh - 26);
+  g.font = '500 10px "Cascadia Code", Consolas, monospace';
+  g.fillStyle = 'rgba(160,200,230,.42)';
+  g.fillText('GRID 1:1 · NO PERSPECTIVE', x0 + 28, y0 + fh - 12);
+
+  /* centre cross */
+  g.strokeStyle = 'rgba(230,248,255,.5)';
+  g.beginPath(); g.moveTo(cx - 12, cy); g.lineTo(cx + 12, cy); g.stroke();
+  g.beginPath(); g.moveTo(cx, cy - 12); g.lineTo(cx, cy + 12); g.stroke();
+
+  return { canvas: c, data: g.getImageData(0, 0, W, H) };
+}
+
+function buildCorrectionScene(withGrid){
+  return buildFacade(withGrid);
+}
+
+/* ---------------------------------------------------------
+   3. warp engine
+--------------------------------------------------------- */
+const LUT_N = 1024;
+
+function buildInverse(qe, k2, Rc, DMAX){
+  // Sensor-side mapping: for every displayed radius, find the source radius.
+  // r_src = r_disp / (1 + q(r_disp / Rc)) — monotonic for q > -100%, always fills the frame.
+  const inv = new Float32Array(LUT_N + 1);
+  for (let j = 0; j <= LUT_N; j++){
+    const rd = DMAX * j / LUT_N;
+    const q = qAtRho(Math.min(rd / Rc, 1.35), qe, k2);
+    inv[j] = rd / (1 + q);
+  }
+  return inv;
+}
+
+function createWarpEngine(scene, fw, fh, fcx, fcy, dw, dh){
+  const sw = scene.canvas.width, sh = scene.canvas.height;
+  const data = scene.data.data;
+  const Rc = Math.hypot(fw / 2, fh / 2);
+  const DMAX = Rc * 1.9;
+  const n = dw * dh;
+  const UX = new Float32Array(n), UY = new Float32Array(n), RD = new Float32Array(n);
+  const J = new Uint16Array(n), FR = new Float32Array(n);
+
+  for (let y = 0; y < dh; y++){
+    for (let x = 0; x < dw; x++){
+      const p = y * dw + x;
+      const dx = (x + 0.5 - dw / 2) * (fw / dw);
+      const dy = (y + 0.5 - dh / 2) * (fh / dh);
+      const r = Math.hypot(dx, dy) || 1e-6;
+      UX[p] = dx / r; UY[p] = dy / r; RD[p] = r;
+      const t = Math.min(r / DMAX, 1) * (LUT_N - 1);
+      const j = Math.min(t | 0, LUT_N - 2);
+      J[p] = j; FR[p] = t - j;
+    }
+  }
+
+  const ideal = makeCanvas(dw, dh);
+  const idealCtx = ideal.getContext('2d');
+  const idealData = idealCtx.createImageData(dw, dh);
+
+  function sampleInto(outData, inv, useIdeal){
+    const od = outData.data;
+    const bgR = 6, bgG = 15, bgB = 24;
+    for (let p = 0; p < n; p++){
+      const rd = RD[p];
+      let rs;
+      if (useIdeal) rs = rd;
+      else {
+        const j = J[p], f = FR[p];
+        rs = inv[j] + (inv[j + 1] - inv[j]) * f;
+      }
+      const sx = fcx + UX[p] * rs;
+      const sy = fcy + UY[p] * rs;
+      const o = p << 2;
+      if (sx < 1 || sy < 1 || sx >= sw - 2 || sy >= sh - 2){
+        od[o] = bgR; od[o + 1] = bgG; od[o + 2] = bgB; od[o + 3] = 255;
+        continue;
+      }
+      const ix = sx | 0, iy = sy | 0;
+      const fx = sx - ix, fy = sy - iy;
+      const st = sw << 2;
+      const i00 = (iy * sw + ix) << 2;
+      const i01 = i00 + 4, i10 = i00 + st, i11 = i10 + 4;
+      const w00 = (1 - fx) * (1 - fy), w01 = fx * (1 - fy), w10 = (1 - fx) * fy, w11 = fx * fy;
+      od[o]     = data[i00] * w00 + data[i01] * w01 + data[i10] * w10 + data[i11] * w11;
+      od[o + 1] = data[i00 + 1] * w00 + data[i01 + 1] * w01 + data[i10 + 1] * w10 + data[i11 + 1] * w11;
+      od[o + 2] = data[i00 + 2] * w00 + data[i01 + 2] * w01 + data[i10 + 2] * w10 + data[i11 + 2] * w11;
+      od[o + 3] = 255;
+    }
+  }
+
+  /* cached ideal image */
+  let idealReady = false;
+  function ensureIdeal(){
+    if (!idealReady){
+      sampleInto(idealData, null, true);
+      idealCtx.putImageData(idealData, 0, 0);
+      idealReady = true;
+    }
+    return ideal;
+  }
+
+  const dist = makeCanvas(dw, dh);
+  const distCtx = dist.getContext('2d');
+  const distData = distCtx.createImageData(dw, dh);
+  let distKey = '';
+
+  function render(qe, k2){
+    const key = qe + '|' + k2;
+    if (key === distKey) return dist;
+    const inv = buildInverse(qe, k2, Rc, DMAX);
+    sampleInto(distData, inv, false);
+    distCtx.putImageData(distData, 0, 0);
+    distKey = key;
+    return dist;
+  }
+
+  return {
+    dw, dh, Rc, DMAX,
+    ideal: () => { ensureIdeal(); return ideal; },
+    distorted: render,
+    composite(ctx, qe, k2, view, split){
+      const id = ensureIdeal(), dd = render(qe, k2);
+      if (view === 'ideal'){ ctx.drawImage(id, 0, 0); return; }
+      if (view === 'compare'){
+        ctx.drawImage(id, 0, 0);
+        const sx = Math.round(split * dw);
+        ctx.save();
+        ctx.beginPath(); ctx.rect(sx, 0, dw - sx, dh); ctx.clip();
+        ctx.drawImage(dd, 0, 0);
+        ctx.restore();
+        return;
+      }
+      ctx.drawImage(dd, 0, 0);
+    }
+  };
+}
+
+/* ---------------------------------------------------------
+   4. lab state
+--------------------------------------------------------- */
+const DEFAULTS = { f: 24, field: 40, qe: -12, k2: 3, theta: 30, scene: 'facade', grid: false, rings: true, view: 'distorted', split: 0.5, preset: 'wide' };
+const state = { ...DEFAULTS };
+
+const PRESETS = {
+  wide:  { f: 24,  field: 40, qe: -12,  k2: 3,  note: '24 mm 广角：前组强、后组弱，边缘放大率被压低，典型桶形。' },
+  normal:{ f: 50,  field: 26, qe: -1.5, k2: 0,  note: '50 mm 标准：前后组接近对称，畸变通常不到 1%。' },
+  tele:  { f: 135, field: 9,  qe: 2.5,  k2: 0,  note: '135 mm 长焦：视场很窄，边缘主光线更“陡”，常见轻微枕形。' },
+  ultra: { f: 14,  field: 45, qe: -21,  k2: 8,  note: '14 mm 超广角：视场极大，桶形最强；鱼眼则会换一种投影。' }
+};
+
+let sceneKey = 'facade';
+let scene = null;
+let engine = null;
+
+function currentScene(){
+  const key = state.scene + (state.grid ? '+grid' : '');
+  if (key !== sceneKey || !scene){
+    scene = state.scene === 'facade' ? buildFacade(state.grid) : buildChartScene(1600, 1040, FW, FH, 55, { label: 'RADIAL DISTORTION TARGET' });
+    sceneKey = key;
+    engine = createWarpEngine(scene, FW, FH, FCX, FCY, 720, 468);
+  }
+  return { scene, engine };
+}
+
+const imageCanvas = $('#imageCanvas');
+const imageCtx = imageCanvas.getContext('2d');
+
+let warpKey = '';
+let viewKey = '';
+
+function paintLabImage(){
+  const { engine } = currentScene();
+  const wkey = `${state.qe}|${state.k2}|${state.field}|${sceneKey}`;
+  const vkey = `${state.view}|${state.split}`;
+  if (wkey === warpKey && vkey === viewKey) return;
+  engine.composite(imageCtx, state.qe, state.k2, state.view, state.split);
+  warpKey = wkey; viewKey = vkey;
+}
+
+/* ---------------------------------------------------------
+   5. rings overlay
+--------------------------------------------------------- */
+function paintRings(){
+  const svg = $('#ringOverlay');
+  if (!svg) return;
+  const show = state.rings && state.view !== 'ideal';
+  svg.style.opacity = show ? '1' : '0';
+  if (!show) return;
+
+  const dw = 720, dh = 468, Rc = Math.hypot(FW / 2, FH / 2) * (dw / FW);
+  const cx = dw / 2, cy = dh / 2;
+  const m = modelAt(state);
+  const idealR = Rc * m.rho;
+  const actualR = idealR * (1 + m.q);
+  const maxR = 316;
+  const shownR = Math.min(actualR, maxR);
+  const col = TYPE_COLOR[m.type];
+  const ang = -Math.PI / 4.2;
+
+  const pointAt = (r) => [cx + Math.cos(ang) * r, cy + Math.sin(ang) * r];
+  const [ix, iy] = pointAt(idealR);
+  const [ax, ay] = pointAt(shownR);
+  const [sx, sy] = pointAt(shownR + 18);
+  const arc = (r) => {
+    const a0 = ang - 0.13, a1 = ang + 0.13;
+    const x0 = cx + Math.cos(a0) * r, y0 = cy + Math.sin(a0) * r;
+    const x1 = cx + Math.cos(a1) * r, y1 = cy + Math.sin(a1) * r;
+    return `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${r.toFixed(1)} ${r.toFixed(1)} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+  };
+  const text = actualR > maxR ? `θ ${state.theta.toFixed(1)}° → 出画` : `θ ${state.theta.toFixed(1)}°`;
+
+  $('#ringGroup').innerHTML = `
+    <path d="${arc(idealR)}" fill="none" stroke="rgba(190,230,250,.45)" stroke-width="1" stroke-dasharray="2 3"/>
+    <path d="${arc(shownR)}" fill="none" stroke="${col}" stroke-width="2"/>
+    <line x1="${cx}" y1="${cy}" x2="${ax.toFixed(1)}" y2="${ay.toFixed(1)}" stroke="rgba(200,235,255,.22)" stroke-width="1"/>
+    <line x1="${ax.toFixed(1)}" y1="${ay.toFixed(1)}" x2="${(ax + Math.cos(ang) * 16).toFixed(1)}" y2="${(ay + Math.sin(ang) * 16).toFixed(1)}" stroke="${col}" stroke-width="1.4"/>
+    <circle cx="${ix.toFixed(1)}" cy="${iy.toFixed(1)}" r="3" fill="none" stroke="rgba(210,240,255,.75)" stroke-width="1"/>
+    <circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="3.6" fill="${col}" stroke="rgba(4,12,20,.8)" stroke-width="1.5"/>
+    <text x="${sx.toFixed(1)}" y="${sy.toFixed(1)}" font-family="Cascadia Code, Consolas, monospace" font-size="9.5" fill="rgba(225,242,255,.8)" text-anchor="${Math.cos(ang) > 0 ? 'start' : 'end'}">${text}</text>
+  `;
+}
+
+/* ---------------------------------------------------------
+   6. diagram
+--------------------------------------------------------- */
+const diagramCanvas = $('#diagramCanvas');
+const dctx = diagramCanvas.getContext('2d');
+
+function setupHiDPI(canvas, ctx, w, h){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = '100%';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function drawDiagram(){
+  const W = 700, H = 300;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (diagramCanvas.width !== W * dpr){ setupHiDPI(diagramCanvas, dctx, W, H); }
+  dctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  dctx.clearRect(0, 0, W, H);
+
+  const { f, field, qe, k2, theta } = state;
+  const axisY = 156, xL = 250, xS = 590;
+  const yMaxMM = Math.max(f * Math.tan(field * RAD) * (1 + Math.max(0, qe / 100) * 1.15), 1);
+  const yHalf = 108;
+  const sc = yHalf / yMaxMM;
+  const X = xf => xL + (xS - xL) * xf;          // xf: f units from lens
+  const Y = ymm => axisY - ymm * sc;
+
+  dctx.clearRect(0, 0, W, H);
+
+  /* baseline grid */
+  dctx.strokeStyle = 'rgba(150,200,240,.06)';
+  dctx.lineWidth = 1;
+  for (let i = 0; i < 8; i++){
+    const x = 40 + i * 96;
+    dctx.beginPath(); dctx.moveTo(x, 22); dctx.lineTo(x, H - 22); dctx.stroke();
+  }
+  dctx.strokeStyle = 'rgba(150,200,240,.10)';
+  for (let i = -3; i <= 3; i++){
+    const y = axisY + i * 34;
+    dctx.beginPath(); dctx.moveTo(30, y); dctx.lineTo(W - 24, y); dctx.stroke();
+  }
+
+  /* optical axis */
+  dctx.strokeStyle = 'rgba(200,230,250,.28)';
+  dctx.setLineDash([4, 6]);
+  dctx.beginPath(); dctx.moveTo(28, axisY); dctx.lineTo(W - 20, axisY); dctx.stroke();
+  dctx.setLineDash([]);
+
+  /* lens */
+  const lensTop = axisY - 112, lensBot = axisY + 112;
+  const lensGrad = dctx.createLinearGradient(xL - 16, 0, xL + 16, 0);
+  lensGrad.addColorStop(0, 'rgba(85,214,255,.04)');
+  lensGrad.addColorStop(.5, 'rgba(85,214,255,.15)');
+  lensGrad.addColorStop(1, 'rgba(85,214,255,.04)');
+  dctx.beginPath();
+  dctx.moveTo(xL, lensTop);
+  dctx.bezierCurveTo(xL + 22, lensTop + 62, xL + 22, lensBot - 62, xL, lensBot);
+  dctx.bezierCurveTo(xL - 22, lensBot - 62, xL - 22, lensTop + 62, xL, lensTop);
+  dctx.closePath();
+  dctx.fillStyle = lensGrad; dctx.fill();
+  dctx.strokeStyle = 'rgba(85,214,255,.5)'; dctx.lineWidth = 1.4; dctx.stroke();
+
+  /* lens principal plane */
+  dctx.strokeStyle = 'rgba(85,214,255,.18)';
+  dctx.setLineDash([2, 5]);
+  dctx.beginPath(); dctx.moveTo(xL, lensTop - 8); dctx.lineTo(xL, lensBot + 8); dctx.stroke();
+  dctx.setLineDash([]);
+
+  /* sensor */
+  const sensorTop = axisY - 116, sensorBot = axisY + 116;
+  dctx.fillStyle = 'rgba(160,210,240,.10)';
+  rr(dctx, xS - 5, sensorTop, 10, sensorBot - sensorTop, 4); dctx.fill();
+  dctx.strokeStyle = 'rgba(190,230,255,.42)'; dctx.lineWidth = 1.2;
+  rr(dctx, xS - 5, sensorTop, 10, sensorBot - sensorTop, 4); dctx.stroke();
+  dctx.strokeStyle = 'rgba(190,230,255,.2)';
+  for (let i = -5; i <= 5; i++){
+    const y = axisY + i * 20;
+    dctx.beginPath(); dctx.moveTo(xS + 7, y); dctx.lineTo(xS + 15, y); dctx.stroke();
+  }
+
+  /* field bundles — 只画上半视场，减少重复 */
+  const fields = [0, .25, .5, .75, 1];
+  for (const ff of fields){
+    const th = ff * field;
+    const yIdeal = f * Math.tan(th * RAD);
+    const rho = Math.tan(th * RAD) / Math.tan(field * RAD);
+    const q = qAtRho(rho, qe, k2);
+    const yAct = yIdeal * (1 + q);
+    const sel = Math.abs(th - theta) < field * 0.14;
+    const offs = sel ? [-7, 0, 7] : [-5, 5];
+    for (const o of offs){
+      const chief = o === 0;
+      dctx.strokeStyle = sel
+        ? (chief ? 'rgba(255,196,130,.96)' : 'rgba(255,196,130,.26)')
+        : (chief ? 'rgba(85,214,255,.48)' : 'rgba(85,214,255,.11)');
+      dctx.lineWidth = sel ? (chief ? 1.8 : 1) : (chief ? 1.1 : .8);
+      const hMM = o * 0.95;
+      const yStartMM = hMM - 0.62 * f * Math.tan(th * RAD);
+      dctx.beginPath();
+      dctx.moveTo(X(-0.62), Y(yStartMM));
+      dctx.lineTo(X(0), Y(hMM));
+      dctx.lineTo(X(1), Y(yAct));
+      dctx.stroke();
+    }
+    /* ideal tick + actual dot */
+    dctx.beginPath();
+    dctx.arc(X(1), Y(yIdeal), 4, 0, Math.PI * 2);
+    dctx.strokeStyle = 'rgba(215,240,255,.6)';
+    dctx.lineWidth = 1.3; dctx.stroke();
+
+    dctx.beginPath();
+    dctx.arc(X(1), Y(yAct), 4.6, 0, Math.PI * 2);
+    dctx.fillStyle = sel ? '#ffcf94' : (q < 0 ? 'rgba(85,214,255,.9)' : 'rgba(255,184,107,.95)');
+    dctx.fill();
+  }
+
+  /* selected field bracket */
+  const selA = theta;
+  const selSign = 1;
+  const th = selA;
+  const yIdeal = f * Math.tan(th * RAD);
+  const rho = Math.tan(th * RAD) / Math.tan(field * RAD);
+  const q = qAtRho(rho, qe, k2);
+  const yAct = yIdeal * (1 + q);
+  if (Math.abs(yAct - yIdeal) > 0.02){
+    const bx = X(1) + 21;
+    const midY = (Y(yIdeal) + Y(yAct)) / 2;
+    dctx.strokeStyle = 'rgba(255,196,130,.8)';
+    dctx.lineWidth = 1.2;
+    dctx.beginPath(); dctx.moveTo(bx, Y(yIdeal)); dctx.lineTo(bx, Y(yAct)); dctx.stroke();
+    dctx.beginPath(); dctx.moveTo(bx - 5, Y(yIdeal)); dctx.lineTo(bx + 5, Y(yIdeal)); dctx.stroke();
+    dctx.beginPath(); dctx.moveTo(bx - 5, Y(yAct)); dctx.lineTo(bx + 5, Y(yAct)); dctx.stroke();
+    dctx.font = '500 11px "Cascadia Code", Consolas, monospace';
+    dctx.fillStyle = 'rgba(255,210,160,.92)';
+    dctx.textAlign = 'left';
+    dctx.fillText(`δy′ ${signedNum(yAct - yIdeal, 2, '')}`, bx + 9, midY + 4);
+  }
+
+  /* labels */
+  dctx.font = '500 12px "Cascadia Code", Consolas, "Microsoft YaHei", monospace';
+  dctx.fillStyle = 'rgba(170,208,236,.72)';
+  dctx.textAlign = 'center';
+  dctx.fillText('透 镜', xL, lensTop - 16);
+  dctx.fillText('像 面', xS, sensorTop - 14);
+  dctx.textAlign = 'left';
+  dctx.fillStyle = 'rgba(160,200,230,.55)';
+  dctx.fillText('∞ 远物 · 平行光', 34, 30);
+
+  /* focal distance */
+  dctx.strokeStyle = 'rgba(160,200,230,.3)';
+  dctx.beginPath(); dctx.moveTo(xL, H - 22); dctx.lineTo(xS, H - 22); dctx.stroke();
+  dctx.beginPath(); dctx.moveTo(xL, H - 27); dctx.lineTo(xL, H - 17); dctx.stroke();
+  dctx.beginPath(); dctx.moveTo(xS, H - 27); dctx.lineTo(xS, H - 17); dctx.stroke();
+  dctx.fillStyle = 'rgba(185,218,242,.7)';
+  dctx.textAlign = 'center';
+  dctx.font = '500 12px "Cascadia Code", Consolas, monospace';
+  dctx.fillText(`f = ${f} mm`, (xL + xS) / 2, H - 28);
+
+  /* field angle arc */
+  dctx.strokeStyle = 'rgba(255,196,130,.45)';
+  dctx.lineWidth = 1;
+  dctx.beginPath(); dctx.arc(X(0), axisY, 40, -Math.PI / 2, -Math.PI / 2 + theta * RAD); dctx.stroke();
+  dctx.fillStyle = 'rgba(255,196,130,.8)';
+  dctx.textAlign = 'left';
+  dctx.font = '500 12px "Cascadia Code", Consolas, monospace';
+  dctx.fillText(`ω ${theta.toFixed(1)}°`, xL + 50, axisY - 56);
+
+  $('#diagramF').textContent = `f = ${f} mm`;
+  $('#diagramDelta').textContent = `δy′ = ${signedNum(yAct - yIdeal, 2, ' mm')}`;
+}
+
+/* ---------------------------------------------------------
+   7. charts
+--------------------------------------------------------- */
+const CHART = { W: 640, H: 250, l: 54, r: 18, t: 24, b: 36 };
+
+function chartModel(kind){
+  const field = state.field, qe = state.qe, k2 = state.k2;
+  const N = 150;
+  const samples = [];
+  let maxAbs = 0;
+  for (let i = 0; i <= N; i++){
+    const th = field * i / N;
+    let v;
+    if (kind === 'q') v = qAtTheta(th, field, qe, k2) * 100;
+    else {
+      const y0 = state.f * Math.tan(th * RAD);
+      v = y0 * qAtTheta(th, field, qe, k2);
+    }
+    samples.push([th, v]);
+    if (Math.abs(v) > maxAbs) maxAbs = Math.abs(v);
+  }
+  maxAbs = Math.max(maxAbs, kind === 'q' ? 0.9 : 0.25);
+  const step = niceStep(maxAbs * 1.12, 3.2);
+  const top = Math.ceil(maxAbs * 1.12 / step) * step;
+  const { W, H, l, r, t, b } = CHART;
+  const X = th => l + th / field * (W - l - r);
+  const Y = v => t + (top - v) / (2 * top) * (H - t - b);
+  return { field, qe, k2, samples, step, top, X, Y, zeroY: Y(0), W, H, l, r, t, b };
+}
+
+function renderChart(kind, svg){
+  const m = chartModel(kind);
+  const { field, samples, step, top, X, Y, zeroY, W, H, l, r, t, b } = m;
+  const type = classify(m.qe, m.k2);
+  const col = TYPE_COLOR[type];
+  const dec = step >= 1 ? 0 : step >= 0.1 ? 1 : 2;
+  const fmt = v => {
+    const s = Math.abs(v) < 1e-9 ? '0' : Math.abs(v).toFixed(dec);
+    return v < -1e-9 ? MINUS + s : s;
+  };
+
+  const pts = samples.map(([th, v]) => `${X(th).toFixed(2)},${Y(v).toFixed(2)}`);
+  const line = `M ${pts.join(' L ')}`;
+  const area = `M ${X(0).toFixed(2)} ${zeroY.toFixed(2)} L ${pts.join(' L ')} L ${X(field).toFixed(2)} ${zeroY.toFixed(2)} Z`;
+
+  const yTicks = [];
+  const nT = Math.round(top / step);
+  for (let i = -nT; i <= nT; i++){
+    const v = i * step;
+    yTicks.push(`<line class="grid-line" x1="${l}" y1="${Y(v).toFixed(2)}" x2="${W - r}" y2="${Y(v).toFixed(2)}"/>
+      <text x="${l - 9}" y="${(Y(v) + 3.5).toFixed(2)}" text-anchor="end">${fmt(v)}</text>`);
+  }
+  const xTicks = [];
+  for (let i = 0; i <= 4; i++){
+    const th = field * i / 4;
+    xTicks.push(`<line class="grid-line" x1="${X(th).toFixed(2)}" y1="${t}" x2="${X(th).toFixed(2)}" y2="${H - b}"/>
+      <text x="${X(th).toFixed(2)}" y="${H - b + 16}" text-anchor="middle">${th.toFixed(field < 20 ? 1 : 0)}°</text>`);
+  }
+
+  const curVal = kind === 'q'
+    ? qAtTheta(state.theta, field, m.qe, m.k2) * 100
+    : state.f * Math.tan(state.theta * RAD) * qAtTheta(state.theta, field, m.qe, m.k2);
+  const mx = X(state.theta), my = Y(curVal);
+  const label = kind === 'q' ? `${signedPct(curVal, 1)}` : `${signedNum(curVal, 2, '')}`;
+  const nearRight = mx > W - 130;
+  const lx = nearRight ? mx - 9 : mx + 9;
+  const anchor = nearRight ? 'end' : 'start';
+  const ly = my < t + 26 ? my + 20 : my - 10;
+
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="gBarrel-${kind}" x1="0" y1="${zeroY}" x2="0" y2="${H - b}" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="rgba(76,201,240,.02)"/>
+        <stop offset="1" stop-color="rgba(76,201,240,.30)"/>
+      </linearGradient>
+      <linearGradient id="gPin-${kind}" x1="0" y1="${zeroY}" x2="0" y2="${t}" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="rgba(255,184,107,.02)"/>
+        <stop offset="1" stop-color="rgba(255,184,107,.26)"/>
+      </linearGradient>
+      <clipPath id="clipAbove-${kind}"><rect x="0" y="0" width="${W}" height="${zeroY.toFixed(2)}"/></clipPath>
+      <clipPath id="clipBelow-${kind}"><rect x="0" y="${zeroY.toFixed(2)}" width="${W}" height="${(H - zeroY).toFixed(2)}"/></clipPath>
+    </defs>
+    ${yTicks.join('')}
+    ${xTicks.join('')}
+    <line class="axis-line" x1="${l}" y1="${t}" x2="${l}" y2="${H - b}"/>
+    <line class="axis-line" x1="${l}" y1="${H - b}" x2="${W - r}" y2="${H - b}"/>
+    <line class="zero-line" x1="${l}" y1="${zeroY}" x2="${W - r}" y2="${zeroY}"/>
+    <path d="${area}" fill="url(#gBarrel-${kind})" clip-path="url(#clipBelow-${kind})"/>
+    <path d="${area}" fill="url(#gPin-${kind})" clip-path="url(#clipAbove-${kind})"/>
+    <path d="${line}" fill="none" stroke="${col}" stroke-opacity=".16" stroke-width="7" stroke-linecap="round"/>
+    <path d="${line}" fill="none" stroke="${col}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <line class="marker-line" x1="${mx}" y1="${t}" x2="${mx}" y2="${H - b}"/>
+    <circle cx="${mx}" cy="${my}" r="4.2" fill="${col}" stroke="#06111d" stroke-width="2"/>
+    <text class="marker-label" x="${lx}" y="${ly}" text-anchor="${anchor}">${label}</text>
+    <text class="axis-label" x="${l - 8}" y="${t - 8}" text-anchor="end">${kind === 'q' ? 'q / %' : 'δy′ / mm'}</text>
+    <text class="axis-label" x="${W - r}" y="${H - 4}" text-anchor="end">θ / °</text>
+    ${kind === 'd' ? `<text class="drag-hint" x="${l + 8}" y="${t + 14}">δy′ ∝ θ³</text>` : ''}
+  `;
+}
+
+function renderCharts(){
+  renderChart('q', $('#chartQ'));
+  renderChart('d', $('#chartD'));
+}
+
+function thetaFromPointer(svg, e){
+  const rect = svg.getBoundingClientRect();
+  const x = (e.clientX - rect.left) / rect.width * CHART.W;
+  const th = clamp((x - CHART.l) / (CHART.W - CHART.l - CHART.r) * state.field, 0, state.field);
+  return Math.round(th * 10) / 10;
+}
+
+function bindChart(svg){
+  let active = false;
+  const move = e => {
+    if (!active) return;
+    const th = thetaFromPointer(svg, e);
+    if (th !== state.theta){ state.theta = th; refreshSelection(); }
+  };
+  svg.addEventListener('pointerdown', e => {
+    active = true;
+    svg.setPointerCapture(e.pointerId);
+    state.theta = thetaFromPointer(svg, e);
+    refreshSelection();
+    e.preventDefault();
+  });
+  svg.addEventListener('pointermove', move);
+  const end = () => { active = false; };
+  svg.addEventListener('pointerup', end);
+  svg.addEventListener('pointercancel', end);
+}
+
+/* ---------------------------------------------------------
+   8. readouts
+--------------------------------------------------------- */
+function updateReadouts(){
+  const m = modelAt(state);
+  const col = TYPE_COLOR[m.type];
+  const badge = $('#typeBadge');
+  badge.textContent = TYPE_LABEL[m.type];
+  badge.className = 'badge ' + TYPE_CLASS[m.type];
+
+  $('#rTheta').textContent = fmtDeg(state.theta);
+  $('#rIdeal').textContent = m.y0.toFixed(2) + ' mm';
+  $('#rActual').textContent = m.y.toFixed(2) + ' mm';
+  $('#rDelta').textContent = signedNum(m.dy, 2, ' mm');
+  $('#rDelta').style.color = m.dy < -0.005 ? 'var(--barrel)' : m.dy > 0.005 ? 'var(--pincushion)' : '';
+  $('#rEdge').textContent = signedPct(state.qe);
+  const rq = $('#rQ');
+  rq.textContent = signedPct(m.q * 100);
+  rq.style.color = col;
+  $('#autoRead').textContent = autoText(m);
+
+  if (state.view === 'ideal'){
+    $('#hudCorner').textContent = '0.0%';
+    $('#hudCorner').style.color = 'var(--mint)';
+    $('#hudField').textContent = '理想直线投影';
+    $('#hudQ').textContent = 'q = 0';
+    $('#hudQ').style.color = 'var(--mint)';
+  } else {
+    $('#hudCorner').style.color = '';
+    $('#hudCorner').textContent = signedPct(state.qe);
+    $('#hudField').textContent = `θ ${state.theta.toFixed(1)}°`;
+    $('#hudQ').textContent = signedPct(m.q * 100);
+    $('#hudQ').style.color = col;
+  }
+
+  /* meter: −35% … +35% */
+  const qp = clamp(m.q * 100, -35, 35);
+  const pos = 50 + qp / 35 * 50;
+  const fill = $('#meterFill'), thumb = $('#meterThumb');
+  fill.style.left = (qp < 0 ? pos : 50) + '%';
+  fill.style.width = Math.abs(pos - 50) + '%';
+  fill.style.background = qp < 0
+    ? 'linear-gradient(90deg,rgba(76,201,240,.55),rgba(76,201,240,.95))'
+    : 'linear-gradient(90deg,rgba(255,184,107,.95),rgba(255,184,107,.55))';
+  thumb.style.left = pos + '%';
+  thumb.style.background = col;
+  thumb.style.boxShadow = `0 0 12px ${col}`;
+}
+
+function autoText(m){
+  const edge = signedPct(state.qe);
+  const q = signedPct(m.q * 100);
+  const th = state.theta.toFixed(1);
+  if (m.type === 'barrel'){
+    return `桶形：边缘放大率低于中心，四角被拉向中心。当前四角 ${edge}，${th}° 视场处 ${q}；画面边缘的直线向外鼓出，中央的方格比四角大。`;
+  }
+  if (m.type === 'pincushion'){
+    return `枕形：边缘放大率高于中心，四角被向外拉开。当前四角 ${edge}，${th}° 视场处 ${q}；画面边缘的直线向内凹，四角被拉伸。`;
+  }
+  if (m.type === 'mustache'){
+    return `胡子形：中段是桶形、四角转为枕形。四角 ${edge}，中段已被压回，${th}° 处 ${q}；只用一阶 k₁ 无法校正，需要 k₂ 或更高阶项。`;
+  }
+  return `几乎无畸变：中心与边缘的放大率基本一致，直线保持笔直。当前四角 ${edge}，${th}° 处 ${q}。`;
+}
+
+function refreshSelection(){
+  updateReadouts();
+  paintRings();
+  drawDiagram();
+  renderCharts();
+}
+
+/* ---------------------------------------------------------
+   9. control sync
+--------------------------------------------------------- */
+function setRangeFill(el){
+  const min = +el.min, max = +el.max, v = +el.value;
+  el.style.setProperty('--p', ((v - min) / (max - min) * 100).toFixed(2) + '%');
+}
+function syncControls(){
+  const fr = $('#fieldRange'), qr = $('#qRange'), kr = $('#k2Range');
+  fr.value = state.field; qr.value = state.qe; kr.value = state.k2;
+  setRangeFill(fr); setRangeFill(qr); setRangeFill(kr);
+  const qAccent = state.qe < -0.05 ? '#55d6ff' : state.qe > 0.05 ? '#ffb86b' : '#5ce1b8';
+  qr.style.setProperty('--range-accent', qAccent);
+  qr.style.setProperty('--thumb', state.qe > 0.05 ? '#ffe1bd' : '#dff7ff');
+  $('#fieldVal').textContent = state.field.toFixed(0) + '°';
+  $('#qVal').textContent = signedPct(state.qe);
+  $('#k2Val').textContent = signedPct(state.k2);
+
+  $$('.preset').forEach(b => b.classList.toggle('is-active', b.dataset.preset === state.preset));
+  $('#presetNote').textContent = state.preset && PRESETS[state.preset]
+    ? PRESETS[state.preset].note
+    : '自定义参数。q_e 直接控制四角，k₂ 控制中段弯曲；试试把 q_e 从负拖到正。';
+
+  $$('#sceneSeg button').forEach(b => b.classList.toggle('is-active', b.dataset.scene === state.scene));
+  $('#gridToggle').checked = state.grid;
+  $('#ringToggle').checked = state.rings;
+
+  $$('#viewSeg button').forEach(b => b.classList.toggle('is-active', b.dataset.view === state.view));
+  const isCompare = state.view === 'compare';
+  $('#compareHandle').hidden = !isCompare;
+  $('#compareLabels').hidden = !isCompare;
+  $('#compareHandle').style.left = (state.split * 100) + '%';
+  $('#compareHandle').setAttribute('aria-valuenow', Math.round(state.split * 100));
+  $('#viewHint').textContent = isCompare ? '拖动分割线对比' : state.view === 'ideal' ? '这就是理想直线投影' : '拖动参数看变化';
+}
+
+/* ---------------------------------------------------------
+   10. lab interactions
+--------------------------------------------------------- */
+function updateAll(){
+  paintLabImage();
+  refreshSelection();
+  syncControls();
+}
+
+let tweenToken = 0;
+function applyPreset(name, animate = true){
+  const p = PRESETS[name];
+  if (!p) return;
+  state.preset = name;
+  const from = { f: state.f, field: state.field, qe: state.qe, k2: state.k2, theta: state.theta };
+  const targetTheta = p.field * 0.75;
+  tweenToken++;
+  const token = tweenToken;
+
+  if (!animate || REDUCE){
+    state.f = p.f; state.field = p.field; state.qe = p.qe; state.k2 = p.k2;
+    state.theta = targetTheta;
+    updateAll();
+    return;
+  }
+  const t0 = performance.now(), dur = 520;
+  const tick = now => {
+    if (token !== tweenToken) return;
+    const t = clamp((now - t0) / dur, 0, 1);
+    const e = 1 - Math.pow(1 - t, 3);
+    state.f = lerp(from.f, p.f, e);
+    state.field = lerp(from.field, p.field, e);
+    state.qe = lerp(from.qe, p.qe, e);
+    state.k2 = lerp(from.k2, p.k2, e);
+    state.theta = clamp(lerp(from.theta, targetTheta, e), 0, state.field);
+    updateAll();
+    if (t < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+function bindLab(){
+  $('#fieldRange').addEventListener('input', e => {
+    tweenToken++;
+    state.field = +e.target.value;
+    state.preset = null;
+    state.theta = clamp(state.theta, 0, state.field);
+    updateAll();
+  });
+  $('#qRange').addEventListener('input', e => {
+    tweenToken++;
+    state.qe = +e.target.value;
+    state.preset = null;
+    updateAll();
+  });
+  $('#k2Range').addEventListener('input', e => {
+    tweenToken++;
+    state.k2 = +e.target.value;
+    state.preset = null;
+    updateAll();
+  });
+
+  $$('.preset').forEach(btn => btn.addEventListener('click', () => applyPreset(btn.dataset.preset)));
+
+  $('#resetBtn').addEventListener('click', () => {
+    tweenToken++;
+    Object.assign(state, { ...DEFAULTS });
+    sceneKey = '';
+    warpKey = '';
+    updateAll();
+    toast('已恢复默认参数');
+  });
+
+  $$('#sceneSeg button').forEach(btn => btn.addEventListener('click', () => {
+    state.scene = btn.dataset.scene;
+    sceneKey = '';
+    warpKey = '';
+    updateAll();
+  }));
+
+  $('#gridToggle').addEventListener('change', e => {
+    state.grid = e.target.checked;
+    sceneKey = '';
+    warpKey = '';
+    updateAll();
+  });
+  $('#ringToggle').addEventListener('change', e => {
+    state.rings = e.target.checked;
+    paintRings();
+  });
+
+  $$('#viewSeg button').forEach(btn => btn.addEventListener('click', () => {
+    state.view = btn.dataset.view;
+    paintLabImage();
+    paintRings();
+    syncControls();
+  }));
+
+  /* compare slider */
+  const handle = $('#compareHandle');
+  let dragging = false;
+  function splitFrom(e){
+    const r = imageCanvas.getBoundingClientRect();
+    state.split = clamp((e.clientX - r.left) / r.width, 0.06, 0.94);
+    handle.style.left = (state.split * 100) + '%';
+    handle.setAttribute('aria-valuenow', Math.round(state.split * 100));
+    paintLabImage();
+  }
+  handle.addEventListener('keydown', e => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    state.split = clamp(state.split + (e.key === 'ArrowRight' ? 0.02 : -0.02), 0.06, 0.94);
+    handle.style.left = (state.split * 100) + '%';
+    handle.setAttribute('aria-valuenow', Math.round(state.split * 100));
+    paintLabImage();
+  });
+  handle.addEventListener('pointerdown', e => {
+    dragging = true;
+    handle.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  handle.addEventListener('pointermove', e => { if (dragging) splitFrom(e); });
+  handle.addEventListener('pointerup', () => { dragging = false; });
+  handle.addEventListener('pointercancel', () => { dragging = false; });
+
+  imageCanvas.addEventListener('pointerdown', e => {
+    if (state.view !== 'compare') return;
+    dragging = true;
+    imageCanvas.setPointerCapture(e.pointerId);
+    splitFrom(e);
+  });
+  imageCanvas.addEventListener('pointermove', e => { if (dragging && state.view === 'compare') splitFrom(e); });
+  imageCanvas.addEventListener('pointerup', () => { dragging = false; });
+  imageCanvas.addEventListener('pointercancel', () => { dragging = false; });
+
+  $('#saveBtn').addEventListener('click', () => {
+    imageCanvas.toBlob(blob => {
+      if (!blob) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'distortion-lab.png';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      toast('已保存当前画面');
+    }, 'image/png');
+  });
+
+  bindChart($('#chartQ'));
+  bindChart($('#chartD'));
+}
+
+/* ---------------------------------------------------------
+   11. hero
+--------------------------------------------------------- */
+const heroCanvas = $('#heroCanvas');
+const heroCtx = heroCanvas.getContext('2d');
+let heroEngine = null;
+
+function buildHero(){
+  const sc = buildChartScene(1100, 790, 760, 546, 64, {
+    label: 'LIVE WARP / RADIAL GRID',
+    bg0: '#040e19', bg1: '#081826',
+    line: 'rgba(120,210,245,.20)', major: 'rgba(120,210,245,.42)',
+    ring: 'rgba(255,184,107,.26)', accent: 'rgba(255,184,107,.8)',
+    border: 'rgba(165,230,255,.75)'
+  });
+  heroEngine = createWarpEngine(sc, 760, 546, 550, 395, 640, 460);
+}
+
+function renderHero(){
+  if (!heroEngine) buildHero();
+  const q = +$('#heroSlider').value;
+  heroEngine.composite(heroCtx, q, 0, 'distorted', 0.5);
+  $('#heroQ').innerHTML = `q<sub>edge</sub> = ${signedPct(q)}`;
+  const badge = $('#heroBadge');
+  const color = q < -1 ? '#4cc9f0' : q > 1 ? '#ffb86b' : '#5ce1b8';
+  badge.style.borderColor = color + '66';
+  badge.innerHTML = (q < -1 ? '桶形 <em>BARREL</em>' : q > 1 ? '枕形 <em>PINCUSHION</em>' : '无畸变 <em>RECTILINEAR</em>');
+  badge.style.color = color;
+  const hs = $('#heroSlider');
+  hs.style.setProperty('--range-accent', color);
+  hs.style.setProperty('--thumb', q > 1 ? '#ffe1bd' : '#dff7ff');
+  setRangeFill(hs);
+}
+
+function bindHero(){
+  $('#heroSlider').addEventListener('input', renderHero);
+  buildHero();
+  renderHero();
+}
+
+/* ---------------------------------------------------------
+   12. cause: stop position demo
+--------------------------------------------------------- */
+const stopCanvas = $('#stopCanvas');
+const stopCtx = stopCanvas.getContext('2d');
+
+function drawStopDemo(){
+  const W = 720, H = 300;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (stopCanvas.width !== W * dpr){
+    stopCanvas.width = W * dpr; stopCanvas.height = H * dpr;
+    stopCanvas.style.width = '100%';
+  }
+  stopCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  stopCtx.clearRect(0, 0, W, H);
+
+  const t = +$('#stopSlider').value;
+  const axisY = 176, lensX = 330, sensorX = 620;
+  const q = 0.55 * t;
+  const idealY = 250;
+  const actY = idealY + q * 62;
+  const lensTop = axisY - 92, lensBot = axisY + 92;
+  const rayLensY = 158;
+
+  /* faint grid */
+  stopCtx.strokeStyle = 'rgba(150,200,240,.05)';
+  for (let x = 40; x < W; x += 60){ stopCtx.beginPath(); stopCtx.moveTo(x, 30); stopCtx.lineTo(x, H - 24); stopCtx.stroke(); }
+  for (let y = 40; y < H; y += 48){ stopCtx.beginPath(); stopCtx.moveTo(28, y); stopCtx.lineTo(W - 20, y); stopCtx.stroke(); }
+
+  /* axis */
+  stopCtx.strokeStyle = 'rgba(200,230,250,.25)';
+  stopCtx.setLineDash([4, 6]);
+  stopCtx.beginPath(); stopCtx.moveTo(30, axisY); stopCtx.lineTo(W - 20, axisY); stopCtx.stroke();
+  stopCtx.setLineDash([]);
+
+  /* lens */
+  const lg = stopCtx.createLinearGradient(lensX - 16, 0, lensX + 16, 0);
+  lg.addColorStop(0, 'rgba(85,214,255,.04)');
+  lg.addColorStop(.5, 'rgba(85,214,255,.16)');
+  lg.addColorStop(1, 'rgba(85,214,255,.04)');
+  stopCtx.beginPath();
+  stopCtx.moveTo(lensX, lensTop);
+  stopCtx.bezierCurveTo(lensX + 24, lensTop + 58, lensX + 24, lensBot - 58, lensX, lensBot);
+  stopCtx.bezierCurveTo(lensX - 24, lensBot - 58, lensX - 24, lensTop + 58, lensX, lensTop);
+  stopCtx.closePath();
+  stopCtx.fillStyle = lg; stopCtx.fill();
+  stopCtx.strokeStyle = 'rgba(85,214,255,.55)'; stopCtx.lineWidth = 1.5; stopCtx.stroke();
+
+  /* sensor */
+  stopCtx.fillStyle = 'rgba(160,210,240,.1)';
+  rr(stopCtx, sensorX - 5, 66, 10, 250, 4); stopCtx.fill();
+  stopCtx.strokeStyle = 'rgba(190,230,255,.45)'; stopCtx.lineWidth = 1.2;
+  rr(stopCtx, sensorX - 5, 66, 10, 250, 4); stopCtx.stroke();
+
+  /* convergence cone */
+  stopCtx.strokeStyle = 'rgba(85,214,255,.10)';
+  stopCtx.lineWidth = 1;
+  for (const yy of [lensTop + 25, lensBot - 25]){
+    stopCtx.beginPath(); stopCtx.moveTo(lensX, yy); stopCtx.lineTo(sensorX, actY); stopCtx.stroke();
+  }
+
+  /* chief ray */
+  stopCtx.strokeStyle = 'rgba(120,225,255,.9)';
+  stopCtx.lineWidth = 1.8;
+  stopCtx.beginPath();
+  stopCtx.moveTo(62, 92);
+  stopCtx.lineTo(lensX, rayLensY);
+  stopCtx.lineTo(sensorX, actY);
+  stopCtx.stroke();
+
+  /* arrow heads on incoming ray */
+  stopCtx.fillStyle = 'rgba(120,225,255,.7)';
+  for (const fx of [0.3, 0.55]){
+    const x = 62 + (lensX - 62) * fx;
+    const y = 92 + (rayLensY - 92) * fx;
+    stopCtx.beginPath(); stopCtx.moveTo(x, y); stopCtx.lineTo(x - 9, y - 2); stopCtx.lineTo(x - 6, y + 8); stopCtx.closePath(); stopCtx.fill();
+  }
+
+  /* stop plate at the ray */
+  const stopX = lensX + t * 118;
+  let stopY;
+  if (t <= 0) stopY = 92 + (rayLensY - 92) * (stopX - 62) / (lensX - 62);
+  else stopY = rayLensY + (actY - rayLensY) * (stopX - lensX) / (sensorX - lensX);
+  const gap = 20, barH = 56;
+  stopCtx.fillStyle = 'rgba(255,184,107,.9)';
+  stopCtx.fillRect(stopX - 2.5, stopY - gap - barH, 5, barH);
+  stopCtx.fillRect(stopX - 2.5, stopY + gap, 5, barH);
+  stopCtx.strokeStyle = 'rgba(255,184,107,.28)';
+  stopCtx.lineWidth = 1;
+  stopCtx.setLineDash([3, 5]);
+  stopCtx.beginPath(); stopCtx.moveTo(stopX, 38); stopCtx.lineTo(stopX, stopY - gap - barH); stopCtx.stroke();
+  stopCtx.setLineDash([]);
+  stopCtx.fillStyle = 'rgba(255,196,130,.9)';
+  stopCtx.font = '500 10px "Cascadia Code", Consolas, monospace';
+  stopCtx.textAlign = 'center';
+  stopCtx.fillText('光阑', stopX, 30);
+
+  /* ideal / actual points */
+  stopCtx.beginPath(); stopCtx.arc(sensorX, idealY, 4, 0, Math.PI * 2);
+  stopCtx.fillStyle = '#06111d'; stopCtx.fill();
+  stopCtx.strokeStyle = 'rgba(210,240,255,.7)'; stopCtx.lineWidth = 1.3; stopCtx.stroke();
+  stopCtx.beginPath(); stopCtx.arc(sensorX, actY, 4.6, 0, Math.PI * 2);
+  stopCtx.fillStyle = q < -0.02 ? '#4cc9f0' : q > 0.02 ? '#ffb86b' : '#5ce1b8'; stopCtx.fill();
+
+  /* bracket */
+  if (Math.abs(actY - idealY) > 1){
+    const bx = sensorX + 18;
+    stopCtx.strokeStyle = 'rgba(255,196,130,.8)'; stopCtx.lineWidth = 1.2;
+    stopCtx.beginPath(); stopCtx.moveTo(bx, idealY); stopCtx.lineTo(bx, actY); stopCtx.stroke();
+    stopCtx.beginPath(); stopCtx.moveTo(bx - 5, idealY); stopCtx.lineTo(bx + 5, idealY); stopCtx.stroke();
+    stopCtx.beginPath(); stopCtx.moveTo(bx - 5, actY); stopCtx.lineTo(bx + 5, actY); stopCtx.stroke();
+    stopCtx.font = '500 11px "Cascadia Code", Consolas, monospace';
+    stopCtx.fillStyle = 'rgba(255,210,160,.95)';
+    stopCtx.textAlign = 'left';
+    const midY = (idealY + actY) / 2;
+    stopCtx.fillText('δy′', bx + 9, midY - 4);
+    stopCtx.fillText(q < -0.02 ? '内收' : q > 0.02 ? '外拉' : '≈0', bx + 9, midY + 13);
+  }
+
+  /* labels */
+  stopCtx.font = '500 10px "Cascadia Code", Consolas, monospace';
+  stopCtx.fillStyle = 'rgba(160,200,230,.55)';
+  stopCtx.textAlign = 'center';
+  stopCtx.fillText('透 镜', lensX, lensTop - 14);
+  stopCtx.fillText('像 面', sensorX, 54);
+  stopCtx.textAlign = 'left';
+  stopCtx.fillStyle = 'rgba(120,225,255,.65)';
+  stopCtx.fillText('主光线', 72, 84);
+  stopCtx.textAlign = 'right';
+  stopCtx.fillStyle = 'rgba(210,240,255,.6)';
+  stopCtx.fillText('理想', sensorX - 12, idealY + 4);
+  stopCtx.fillText('实际', sensorX - 12, actY + 4);
+
+  /* readout */
+  const badge = $('#stopBadge');
+  const near = Math.abs(t) < 0.14;
+  const type = near ? 'none' : t < 0 ? 'barrel' : 'pincushion';
+  badge.textContent = TYPE_LABEL[type];
+  badge.className = 'badge ' + TYPE_CLASS[type];
+  $('#stopCaption').textContent = near
+    ? '光阑靠近透镜：主光线落点几乎回到理想位置，畸变很小——这就是对称结构“天然校正”的原因。'
+    : t < 0
+      ? '光阑在透镜之前：主光线落点被拉向中心，边缘放大率变低——桶形。'
+      : '光阑在透镜之后：主光线落点被推得更远，边缘放大率变高——枕形。';
+}
+
+function bindCause(){
+  $('#stopSlider').addEventListener('input', drawStopDemo);
+  drawStopDemo();
+}
+
+/* ---------------------------------------------------------
+   13. correction
+--------------------------------------------------------- */
+const correctCanvas = $('#correctCanvas');
+const correctCtx = correctCanvas.getContext('2d');
+const CORRECT = { qe: -18, k2: 4, field: 38, f: 24 };
+let correctEngine = null;
+let correctSceneKey = null;
+
+function buildCorrection(){
+  const withGrid = $('#correctGrid').checked;
+  if (correctSceneKey === String(withGrid) && correctEngine) return;
+  const sc = buildFacade(withGrid);
+  correctEngine = createWarpEngine(sc, FW, FH, FCX, FCY, 720, 468);
+  correctSceneKey = String(withGrid);
+}
+
+function renderCorrection(){
+  buildCorrection();
+  const c = +$('#correctSlider').value / 100;
+  const qe = CORRECT.qe * (1 - c);
+  const k2 = CORRECT.k2 * (1 - c);
+  correctEngine.composite(correctCtx, qe, k2, 'distorted', 0.5);
+  setRangeFill($('#correctSlider'));
+  $('#correctResidual').textContent = signedPct(qe);
+  $('#correctPct').textContent = Math.round(c * 100) + '%';
+  const col = qe < -1 ? '#4cc9f0' : qe > 1 ? '#ffb86b' : '#5ce1b8';
+  $('#correctResidual').style.color = col;
+}
+
+function bindCorrection(){
+  $('#correctSlider').addEventListener('input', renderCorrection);
+  $('#correctGrid').addEventListener('change', () => { correctSceneKey = null; renderCorrection(); });
+  $('#autoCorrectBtn').addEventListener('click', () => {
+    const from = +$('#correctSlider').value, to = 100;
+    if (REDUCE || from === to){ $('#correctSlider').value = to; renderCorrection(); return; }
+    const t0 = performance.now(), dur = 650;
+    const tick = now => {
+      const t = clamp((now - t0) / dur, 0, 1);
+      const e = 1 - Math.pow(1 - t, 3);
+      $('#correctSlider').value = Math.round(lerp(from, to, e));
+      renderCorrection();
+      if (t < 1) requestAnimationFrame(tick);
+      else toast('已按模型反向校正');
+    };
+    requestAnimationFrame(tick);
+  });
+  renderCorrection();
+}
+
+/* ---------------------------------------------------------
+   14. quiz
+--------------------------------------------------------- */
+const QUIZ_TYPES = ['barrel', 'pincushion', 'none', 'mustache'];
+const QUIZ_LABEL = { barrel: '桶形', pincushion: '枕形', none: '无明显畸变', mustache: '胡子畸变' };
+const QUIZ_TIP = {
+  barrel: '边缘放大率低，四角向内收。',
+  pincushion: '边缘放大率高，四角被向外拉。',
+  none: '直线保持笔直，中心与边缘放大率一致。',
+  mustache: '中段偏桶形、四角转为枕形，常见于广角变焦。'
+};
+let quizCases = [];
+let quizAnswered = 0, quizCorrect = 0;
+let quizScene = null, quizEngine = null;
+
+function randomQuizCase(type){
+  const r = Math.random();
+  if (type === 'barrel') return { type, qe: -(9 + r * 10), k2: r * 3 };
+  if (type === 'pincushion') return { type, qe: 7 + r * 9, k2: r * 2 };
+  if (type === 'mustache') return { type, qe: 6 + r * 2, k2: 17 + r * 3 };
+  return { type, qe: (r - 0.5) * 1.2, k2: r * 0.8 };
+}
+
+function buildQuizEngine(){
+  if (quizEngine) return;
+  quizScene = buildChartScene(800, 576, 600, 432, 48, {
+    label: 'SPOT IT / TARGET 04',
+    bg0: '#081725', bg1: '#0d2438',
+    line: 'rgba(145,225,255,.34)', major: 'rgba(160,235,255,.56)',
+    ring: 'rgba(255,190,115,.35)', accent: 'rgba(255,190,115,.95)',
+    border: 'rgba(200,242,255,.95)', lineW: 2, borderW: 4
+  });
+  quizEngine = createWarpEngine(quizScene, 600, 432, 400, 288, 300, 216);
+}
+
+function newQuiz(){
+  buildQuizEngine();
+  quizCases = QUIZ_TYPES.map(randomQuizCase);
+  for (let i = quizCases.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [quizCases[i], quizCases[j]] = [quizCases[j], quizCases[i]];
+  }
+  quizAnswered = 0; quizCorrect = 0;
+  const grid = $('#quizGrid');
+  grid.innerHTML = '';
+  quizCases.forEach((c, i) => {
+    const card = document.createElement('article');
+    card.className = 'quiz-card';
+    card.dataset.index = i;
+    card.innerHTML = `
+      <div class="q-canvas-wrap"><canvas width="300" height="216" aria-label="第 ${i + 1} 题畸变影像"></canvas></div>
+      <h3>图 ${String(i + 1).padStart(2, '0')}</h3>
+      <p>它是哪种畸变？</p>
+      <div class="q-options">
+        <button type="button" data-type="barrel">桶形</button>
+        <button type="button" data-type="pincushion">枕形</button>
+        <button type="button" data-type="none">无明显畸变</button>
+        <button type="button" data-type="mustache">胡子畸变</button>
+      </div>
+      <p class="q-result"></p>
+    `;
+    grid.appendChild(card);
+    const ctx = card.querySelector('canvas').getContext('2d');
+    quizEngine.composite(ctx, c.qe, c.k2, 'distorted', 0.5);
+    card.querySelectorAll('.q-options button').forEach(btn => {
+      btn.addEventListener('click', () => answerQuiz(card, c, btn));
+    });
+  });
+  updateQuizScore();
+  $('#quizFoot').textContent = '先看直线的弯曲方向，再看四角是内收还是外拉。';
+}
+
+function answerQuiz(card, c, btn){
+  if (card.dataset.answered) return;
+  card.dataset.answered = '1';
+  const pick = btn.dataset.type;
+  const ok = pick === c.type;
+  card.classList.add(ok ? 'is-correct' : 'is-wrong');
+  card.querySelectorAll('.q-options button').forEach(b => {
+    b.disabled = true;
+    if (b.dataset.type === c.type) b.classList.add('correct');
+    if (b === btn && !ok) b.classList.add('picked');
+  });
+  card.querySelector('.q-result').textContent = ok
+    ? `答对了。${QUIZ_TIP[c.type]}`
+    : `正确是「${QUIZ_LABEL[c.type]}」。${QUIZ_TIP[c.type]}`;
+  quizAnswered++;
+  if (ok) quizCorrect++;
+  updateQuizScore();
+  if (quizAnswered === 4){
+    $('#quizFoot').textContent = quizCorrect === 4
+      ? '全对。你已经能只看直线就判断畸变方向了。'
+      : `答对 ${quizCorrect} 题。记住：先看四角，再看直线弯曲的方向。`;
+  }
+}
+
+function updateQuizScore(){
+  $('#quizScore').textContent = String(quizCorrect);
+}
+
+function bindQuiz(){
+  $('#quizReset').addEventListener('click', newQuiz);
+  newQuiz();
+}
+
+/* ---------------------------------------------------------
+   15. misc + init
+--------------------------------------------------------- */
+let toastTimer = 0;
+function toast(msg){
+  const el = $('#toast');
+  el.textContent = msg;
+  el.classList.add('is-visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('is-visible'), 2200);
+}
+
+function bindAmbient(){
+  const nav = $('.site-nav');
+  const onScroll = () => nav.classList.toggle('is-scrolled', window.scrollY > 24);
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  if (!REDUCE && 'IntersectionObserver' in window){
+    const io = new IntersectionObserver((entries) => {
+      for (const en of entries){
+        if (en.isIntersecting){ en.target.classList.add('is-in'); io.unobserve(en.target); }
+      }
+    }, { threshold: 0, rootMargin: '0px 0px -6% 0px' });
+    $$('.card, .section-head, .cause-card, .note-card, .formula-strip, .end-strip').forEach(el => {
+      el.classList.add('reveal');
+      io.observe(el);
+    });
+  }
+}
+
+function init(){
+  bindLab();
+  bindHero();
+  bindCause();
+  bindCorrection();
+  bindQuiz();
+  bindAmbient();
+
+  /* initial lab state */
+  Object.assign(state, { ...DEFAULTS });
+  sceneKey = '';
+  updateAll();
+
+  /* direct-link section jumps */
+  if (location.hash){
+    const target = document.querySelector(location.hash);
+    if (target) setTimeout(() => target.scrollIntoView({ behavior: 'auto' }), 40);
+  }
+}
+
+if (document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+
+})();
+
+</script>
+</body>
+</html>
